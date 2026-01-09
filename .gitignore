@@ -1,0 +1,21 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# env files
+.env
+.env.local
+
+# vs_code
+.vscode/
+
+# logfiles / cache
+*.log
+/cache/
+session_data.json
+logs/
+
+# claude
+CLAUDE.md
+
