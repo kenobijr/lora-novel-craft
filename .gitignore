@@ -15,9 +15,26 @@ __pycache__/
 /cache/
 session_data.json
 logs/
+.DS_Store
 
 # claude
 CLAUDE.md
 
-#project stuff
+#project docs
 mvp.md
+
+# data (show 1 book E2E for data prep pipeline)
+# exclude archive completely
+data/archive/
+# base epub
+data/epub/*
+!data/epub/Jack_London-The_Iron_Heel.epub
+# base md
+data/md_raw/*
+!data/md_raw/Jack_London-The_Iron_Heel.md
+# clean md
+data/md_clean/*
+!data/md_clean/Jack_London-The_Iron_Heel.md
+!data/md_clean/Jack_London-The_Iron_Heel-WORLDRUlES.md
+
+
