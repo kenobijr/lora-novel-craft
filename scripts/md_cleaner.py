@@ -1,15 +1,11 @@
 """
 CLI script to clean / format .md book files for further processing
 
-Objective:
-- target common noise patterns, which can occur across multiple books
-- target common formatting patterns, which can occur across multiple books
-- cleaning must not destroy semantic meaning in any book
-
-Flow:
-- process cli arguments in process_args()
-- execute run_cleaner with cli arguments passed
-- run_cleaner does I/O and triggers xzy & xyz for cleaning / formatting
+pipeline order:
+1. process_footnotes() - extract, replace inline refs, remove blocks
+2. html_to_markdown() - convert html elements to md format
+3. remove_artifacts() - remove pandoc/css noise
+4. normalize_formatting() - whitespace cleanup
 """
 
 import os
@@ -17,17 +13,17 @@ import re
 import argparse
 
 
-def extract_footnotes(text):
+def extract_footnotes(text: str) -> dict[str, str]:
     """
     - extract all footnote blocks into a dictionary
     - coming in this format "href="#4356712297217026545_1164-h-27.htm.html_fn-25.2"
     id="4356712297217026545_1164-h-27.htm.html_fnref-25.2" class="pginternal"><sup>[2]</sup></a>
     <span id="4356712297217026545_1164-h-27.htm.html_fn-25.2"></span>
     <a href="#4356712297217026545_1164-h-27.htm.html_fnref-25.2" class="pginternal">[2]</a>
-    """
-    footnotes = {}
     # regex to match: <span id="...fn-N"></span> <a href="...fnref-N"...>[N]</a> footnote text EOL
     # supports both integer (1) and decimal (2.1) footnote numbers
+    """
+    footnotes = {}
     pattern = r'<span id="([^"]*?fn-(\d+(?:\.\d+)?)[^"]*?)"></span>\s*<a[^>]*>\[[\d.]+\]</a>\s*(.+?)$'
 
     for match in re.finditer(pattern, text, flags=re.MULTILINE):
@@ -38,10 +34,12 @@ def extract_footnotes(text):
     return footnotes
 
 
-def replace_inline_footnotes(text, footnotes):
-    """ replace inline footnote references with [Note: text] """
-    # regex to match: <a href="#...fn-N" id="...fnref-N"...><sup>[N]</sup></a>
-    # supports both integer (1) and decimal (2.1) footnote numbers
+def replace_inline_footnotes(text: str, footnotes: dict[str, str]) -> str:
+    """
+    - replace inline footnote references with [Note: text]
+    - regex to match: <a href="#...fn-N" id="...fnref-N"...><sup>[N]</sup></a>
+    - supports both integer (1) and decimal (2.1) footnote numbers
+    """
     def replacer(match):
         footnote_num = match.group(1)
         if footnote_num in footnotes:
@@ -52,14 +50,16 @@ def replace_inline_footnotes(text, footnotes):
     return re.sub(pattern, replacer, text)
 
 
-def remove_footnote_blocks(text):
-    """ remove all remaining footnote block artifacts """
-    # supports both integer (1) and decimal (2.1) footnote numbers
+def remove_footnote_blocks(text: str) -> str:
+    """
+    - remove all remaining footnote block artifacts
+    - supports both integer (1) and decimal (2.1) footnote numbers
+    """
     pattern = r'<span id="[^"]*?fn-[\d.]+[^"]*?"></span>\s*<a[^>]*>\[[\d.]+\]</a>.*?$\n?'
     return re.sub(pattern, '', text, flags=re.MULTILINE)
 
 
-def format_blockquotes(match):
+def format_blockquotes(match: re.Match) -> str:
     """
     - match multi line pandoc blockquotes "::: blockquote" [...] ":::"
     - add ">" at beginning of all such lines
@@ -72,8 +72,11 @@ def format_blockquotes(match):
     return "\n".join(quoted_lines)
 
 
-def convert_small_caps(text):
-    """ convert small caps html tags to markdown bold with uppercase: <span class="smcap">text</span> -> **TEXT** """
+def convert_small_caps(text: str) -> str:
+    """
+    - convert small caps html tags to markdown bold with uppercase
+    <span class="smcap">text</span> -> **TEXT**
+    """
     def replacer(match):
         content = match.group(1)
         return f"**{content.upper()}**"
@@ -82,75 +85,70 @@ def convert_small_caps(text):
     return re.sub(pattern, replacer, text)
 
 
-def standardize_scene_breaks(text):
-    # Matches the divider AND any trailing/leading whitespace/newlines
-    # Replaces with exactly one blank line above and below
-    pattern = r'\n+\s*\\?\*[\s\\?\*]+\s*\n+'
-    return re.sub(pattern, '\n\n***\n\n', text)
-
-
-def clean_inscriptions(text):
+def clean_inscriptions(text: str) -> str:
     """
-    handles: S<span class="small">YRUP OF</span> -> SYRUP OF
-    Logic: Find the first letter, then the span, then join them and uppercase everything.
+    - handles: S<span class="small">YRUP OF</span> -> SYRUP OF
+    - logic: find the first letter, then the span, then join them and uppercase everything
+    - pattern: matches a letter followed by the span tag containing more letters
     """
-    # Pattern: Matches a letter followed by the span tag containing more letters
     pattern = r'([A-Za-z])<span class="small">(.*?)</span>'
 
     def merge_and_upper(match):
         first_letter = match.group(1)
         rest_of_text = match.group(2)
         return (first_letter + rest_of_text).upper()
-
     return re.sub(pattern, merge_and_upper, text)
 
 
-def format(text):
+def standardize_scene_breaks(text: str) -> str:
+    # Matches the divider AND any trailing/leading whitespace/newlines
+    # Replaces with exactly one blank line above and below
+    pattern = r'\n+\s*\\?\*[\s\\?\*]+\s*\n+'
+    return re.sub(pattern, '\n\n***\n\n', text)
 
-    # flags=re.DOTALL allows the dot (.) to match newlines
-    text = re.sub(r'::: blockquote\s*\n(.*?)\n:::', format_blockquotes, text, flags=re.DOTALL)
 
-    # convert small caps html to markdown bold uppercase
-    text = convert_small_caps(text)
-
-    # handle footnotes: extract, replace inline refs, remove blocks
+def process_footnotes(text: str) -> str:
+    """ handle footnotes: extract, replace inline refs, remove blocks """
     footnotes = extract_footnotes(text)
     text = replace_inline_footnotes(text, footnotes)
     text = remove_footnote_blocks(text)
-
-    # Remove anchor tags that link to internal notes section (href="#notes.xhtml...")
-    text = re.sub(r'<a href="#notes\.xhtml[^"]*"[^>]*>(.*?)</a>', r'\1', text)
-
-    # Remove page number spans and pagebreak directives
-    text = re.sub(r'<span id="[^"]*page_\d+"[^>]*></span>', '', text)
-    text = re.sub(r'<\?pagebreak[^?]*\?>', '', text)
-
-    # Remove page marker spans but keep the text inside
-    text = re.sub(r'<span id="[^"]+">([^<]+)</span>', r'\1', text)
-
-    # Remove empty span id anchors (footnote/endnote markers)
-    text = re.sub(r'<span id="[^"]+"></span>', '', text)
-
-    # standardize scene breaks
-    text = standardize_scene_breaks(text)
-
-    # clean inscriptions
-    text = clean_inscriptions(text)
-
     return text
 
 
-def clean(text):
+def html_to_markdown(text: str) -> str:
+    # process blockquotes (::: -> >)
+    # flags=re.DOTALL allows the dot (.) to match newlines
+    text = re.sub(r'::: blockquote\s*\n(.*?)\n:::', format_blockquotes, text, flags=re.DOTALL)
+    # convert small caps html to markdown bold uppercase
+    text = convert_small_caps(text)
+    # clean inscriptions
+    text = clean_inscriptions(text)
+    # remove anchor tags that link to internal notes section (href="#notes.xhtml...")
+    text = re.sub(r'<a href="#notes\.xhtml[^"]*"[^>]*>(.*?)</a>', r'\1', text)
+    # Remove page marker spans but keep the text inside
+    text = re.sub(r'<span id="[^"]+">([^<]+)</span>', r'\1', text)
+    # Remove empty span id anchors (footnote/endnote markers)
+    text = re.sub(r'<span id="[^"]+"></span>', '', text)
+    return text
 
+
+def remove_artifacts(text: str) -> str:
+    # remove decorative image spans
+    text = re.sub(r'<span class="nothing">.*?</span>', '', text)
+    # Remove pagebreak directives
+    text = re.sub(r'<\?pagebreak[^?]*\?>', '', text)
     # remove pages: []{#9780063068452_Chapter_1.xhtml_page_12 .right_1 .pagebreak title="12"}
     text = re.sub(r"\[\]\{.*?\}", "", text)
     # remove css formatting: {.chap_head}
     text = re.sub(r"\{\..*?\}", "", text)
-    # Remove decorative image spans
-    text = re.sub(r'<span class="nothing">.*?</span>', '', text)
+    return text
+
+
+def normalize_formatting(text: str) -> str:
+    # standardize scene breaks
+    text = standardize_scene_breaks(text)
     # normalize multiple consecutive line breaks to single line break
     text = re.sub(r'\n{3,}', '\n\n', text)
-
     return text.strip()
 
 
@@ -169,11 +167,10 @@ def run_cleaner(file_name: str, input_dir: str, output_dir: str, force: str) -> 
     char_before = len(content)
     token_before = len(content.split())
     # execute cleaning & formatting
-    
-    content = format(content)
-    
-    content = clean(content)
-
+    content = process_footnotes(content)
+    content = html_to_markdown(content)
+    content = remove_artifacts(content)
+    content = normalize_formatting(content)
     # counting after processing
     char_after = len(content)
     token_after = len(content.split())
@@ -195,7 +192,7 @@ def run_cleaner(file_name: str, input_dir: str, output_dir: str, force: str) -> 
     print(f"Chars removed: {char_delta:,}; Tokens removed: {(token_delta):,}")
 
 
-def process_args():
+def process_args() -> argparse.Namespace:
     """
     process script cli arguments
     - mandatory: input file to process without path
