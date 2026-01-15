@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "book_id": "iron_heel_london",
+    "title": "The Iron Heel",
+    "author": "Jack London",
+    "word_count": 86743,
+    "total_chapters": 25,
+    "total_scenes": null,
+    "global_world_context": null
+  },
+  "scenes": [
+    {
+      "scene_id": null,
+      "chapter_index": null,
+      "scene_index": null,
+      "word_count": null,
+      "chapter_title": null,
+      "scene_context": null,
+      "text": null,
+      "recursive_summary": null,
+      "thought_plan": null
+    }
+  ]
+}
