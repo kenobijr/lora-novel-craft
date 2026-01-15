@@ -19,6 +19,7 @@ logs/
 
 # claude
 CLAUDE.md
+.claude/settings.local.json
 
 #project docs
 mvp.md
@@ -36,5 +37,11 @@ data/md_raw/*
 data/md_clean/*
 !data/md_clean/Jack_London-The_Iron_Heel.md
 !data/md_clean/Jack_London-The_Iron_Heel-WORLDRUlES.md
+# json raw
+data/json_raw/*
+!data/json_raw/Jack_London-The_Iron_Heel.json
+
+# diverse documents
+docs/
 
 
