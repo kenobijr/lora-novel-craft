@@ -36,7 +36,8 @@ data/md_raw/*
 # clean md
 data/md_clean/*
 !data/md_clean/Jack_London-The_Iron_Heel.md
-!data/md_clean/Jack_London-The_Iron_Heel-WORLDRUlES.md
+!data/md_clean/Jack_London-The_Iron_Heel-foreword.md
+!data/md_clean/Jack_London-The_Iron_Heel-world_context.md
 # json raw
 data/json_raw/*
 !data/json_raw/Jack_London-The_Iron_Heel.json

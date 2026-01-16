@@ -27,7 +27,7 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
     - Must not be exceeded during train due to fixed setup
 - Context Injection (prepended before Scene / Narrative):
   - System prompt: ~150 tokens
-  - World Rules: ~400 tokens
+  - World Context: ~400 tokens
   - Recursive Summary: ~400 tokens
   - Instruction / Prompt: ~50 tokens
   - Buffer diverse: ~50 tokens
@@ -47,7 +47,6 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 - **Novel Target Format**:
   - Content Anchors: "# Chapter 1" (only arab numbers)
   - If section title exists: "# Chapter 1: My Eagle"
-  - If special context exists: "# Chapter 1 [Context: Dream]"
 
 ### Stage 2: Clean .md with script
 - Process common anchors / css attritbutes / footnote patterns  into .md format
@@ -88,8 +87,13 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 
 #### Stage 4: Create World Context for each book
 - Create "World Context" / "World Rules" as constitution for each book
-- Must not exceed 400 tokens
-- Will be used downstream to split up chapters into scenes intelligently
+- Must not exceed 400 tokens -> 300 - 320 words
+- Will be used downstream to split up chapters into scenes intelligently and for recursive summarys
+- Chosen model: **Gemini 3 Flash**:
+  - 1M token context = can process a 500K word book in one single pass
+  - Cheap
+  - SOTA performace by Gemini model family
+- LINK to systemmessage: [...]
 
 #### Stage 5: Parse Chapters into Semanctic Scenes
 - Parse Chapters into base unit "Semantic Scenes":
