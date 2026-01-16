@@ -13,7 +13,7 @@ replacement = {
 }
 
 
-def replace_words(md_file: str):
+def replace_words(md_file: str) -> None:
     assert md_file.endswith(".md"), "Only .md files accepted"
     with open(md_file, mode="r", encoding="utf-8") as f:
         content = f.read()
