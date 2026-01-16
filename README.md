@@ -65,7 +65,7 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
     "word_count": 17673,
     "total_chapters": 12,
     "total_scenes": null,
-    "global_world_context": null
+    "world_context": null
   },
   "scenes": [
     {
@@ -93,6 +93,7 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
   - 1M token context = can process a 500K word book in one single pass
   - Cheap
   - SOTA performace by Gemini model family
+- Save it into json meta.worldcontext attribute
 - LINK to systemmessage: [...]
 
 #### Stage 5: Parse Chapters into Semanctic Scenes
