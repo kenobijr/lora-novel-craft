@@ -64,18 +64,16 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
     "author": "Jack London",
     "word_count": 17673,
     "total_chapters": 12,
-    "total_scenes": null,
-    "world_context": null
+    "total_scenes": 36,
+    "world_context": "..."
   },
   "scenes": [
     {
-      "scene_id": null,
-      "chapter_index": null,
-      "scene_index": null,
-      "word_count": null,
+      "scene_id": 1,
+      "chapter_index": 1,
       "chapter_title": null,
-      "scene_context": null,
-      "text": null,
+      "instruction": null,
+      "text": "some text content....",
       "recursive_summary": null, 
       "thought_plan": null
     }
@@ -103,6 +101,46 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
   - Inject book world context for better understanding
   - Chapter numbers / titles
 - Add each Scene into scenes array of the respective book json
+
+- scene data model:
+  - "scene_id" (Unique identifier 1-n)
+  - "instruction": 
+    - null for all "normal" narrative cases, which will draw the same instruction "create scene..." together with same systemmessage from other file
+    - for special cases / references (forword / glossary) we will need a special instruction, saved at the scene
+    - script must check: if instruction null -> take default; else -> take instruction saved at scene
+
+- logic to parse scenes:
+  - read in book -> split up into chapters -> loop through & process each chapter
+  - preprocess each chapter by splitting it by \n\n into paragraphs and number each one
+  - add amount tokens of each paragraph to obj with tiktokenizer
+  - chapter text block format for llm in plain text with inline paragraph metadata:
+[P:1|Tok:23] The morning sun cast long shadows across the courtyard as the
+workers began to gather.
+[P:2|Tok:4] I moved to stand beside him...
+  - Send to LLM with world context + instruction: "group into scenes of 650-1500 tokens"
+  - ADD LINK TO PROMPT [...]
+  - llm response must be strictly in this json format with json enforcement enabled:
+{
+  "scenes": [
+    {
+      "token_math_log": "P1(4) + P2(95) + P3(139) + P4(450) + P5(196) = 884 tokens. Valid range (650-1500).",
+      "end_paragraph": 5
+    },
+  ]
+}
+- token_math_log:
+  - internal "Scratchpad" for llm token calculation
+  - without llms failed to calc the tokens
+  - probably due to being forced strictly into json output structure enforcement
+
+- LLM model / SDK:
+  - Gemini 2.0 Flash Lite
+  - OpenAI SDK
+  - JSON Schema Enforcement enabled
+
+
+
+
 
 ### Stage 6: Create recursive LLM summaries
 - Recursive / Rolling Memory (narrative summary up to exactly current scene) per Scene

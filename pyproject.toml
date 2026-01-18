@@ -3,7 +3,11 @@ name = "lora-novel-craft"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
-    "torch>=2.0.0"
+    "torch>=2.0.0",
+    "transformers>=4.51.0",
+    "python-dotenv>=1.1.1",
+    "openai>=2.15.0",
+    "pydantic>=2.0.0"
 ]
 
 [project.optional-dependencies]

@@ -41,8 +41,13 @@ data/md_clean/*
 # json raw
 data/json_raw/*
 !data/json_raw/Jack_London-The_Iron_Heel.json
+#json
+json
 
 # diverse documents
 docs/
+
+# api
+scripts/api_limit.py
 
 
