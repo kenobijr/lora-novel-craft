@@ -1,4 +1,4 @@
-# World Context
+# Novel World Context
 
 ## TONE & STYLE
 - Era/Genre: Early 20th-century Alt-History / Dystopian Socialist Realism.
