@@ -61,13 +61,11 @@ class ScenePartitionResponse(BaseModel):
 class SceneSplitterLLM:
     """
     - handles llm related logic: model / api / key / connections / ...
-    - parses world context md file as  book metadata needed for llm call
+    - world_context directly delivered as str; book metadata needed for llm call
     - manages & formats prompts / systemmessages
     """
-    def __init__(self, world_context_md: str, book_json: str):
-        # parse & save word context md file of book
-        with open(world_context_md, mode="r", encoding="utf-8") as f:
-            self.wc = f.read()
+    def __init__(self, world_context: str, book_json: str):
+        self.wc = world_context
         # init system_message
         with open(SYSTEM_MESSAGE, mode="r", encoding="utf-8") as f:
             self.sm = f.read()
@@ -165,17 +163,17 @@ class BookProcessor:
     - pass world_context further & init scene splitting llm class with it
     - save scene objects to self.book_json during processing
     """
-    def __init__(self, book_md: str, world_context_md: str, book_json: str):
+    def __init__(self, input_book_md: str, output_book_json: str):
         # parse & save content from book md file: narrative as one formatted str
-        with open(book_md, mode="r", encoding="utf-8") as f:
+        with open(input_book_md, mode="r", encoding="utf-8") as f:
             self.raw_text = f.read()
         # file path target json file
-        self.book_json_path = book_json
+        self.book_json_path = output_book_json
         # parse & save content from book json file: structured book meta data
-        with open(book_json, mode="r", encoding="utf-8") as f:
+        with open(output_book_json, mode="r", encoding="utf-8") as f:
             self.book_json = json.load(f)
-        # init llm
-        self.llm = SceneSplitterLLM(world_context_md, book_json)
+        # init llm -> pass world context str extracted from book json
+        self.llm = SceneSplitterLLM(self.book_json["meta"]["world_context"], output_book_json)
         # raw text splitted into chapters during processing
         self.chapters = None
         # list of final semantic scene objects as saved to target json
@@ -337,8 +335,8 @@ class BookProcessor:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: python book_to_scenes.py <book.md> <world_context.md> <output_file.json")
+    if len(sys.argv) < 3:
+        print("Usage: python book_to_scenes.py <input_book.md> <output_book.json")
     else:
-        bp = BookProcessor(sys.argv[1], sys.argv[2], sys.argv[3])
+        bp = BookProcessor(sys.argv[1], sys.argv[2])
         bp.run()
