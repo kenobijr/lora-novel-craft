@@ -76,7 +76,8 @@ class SceneSplitterLLM:
         # init llm
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=api_key
+            api_key=api_key,
+            max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
         )
 
     def _create_systemmessage(self, chapter_formatted: str) -> str:
@@ -138,7 +139,7 @@ class SceneSplitterLLM:
         )
         result = json.loads(response.choices[0].message.content)
 
-        # DEBUGGING without live llm calls // replace llm response by local test file in same format
+        # # DEBUGGING without live llm calls // replace llm response by test file in same format
         # with open("./data/json/test_scene_partition_old.json", mode="r", encoding="utf-8") as f:
         #     result = json.load(f)
 
@@ -245,18 +246,53 @@ class BookProcessor:
             # format & enrich chapter content for llm
             chapter_formatted = self._format_paragraphs(chapter)
             print(f"Prompting LLM for chapter: {chapter_idx} ...")
-            # get semantic scene boundaries for chapter by llm
+            # get atomic semantic scene boundaries for chapter by llm
             scene_partitions = self.llm.get_llm_scene_partitions(chapter_formatted, len(chapter))
             # combine paragraphs to scenes with partitioning dicts
             prev_end = 0
-            scenes = []
+            atomic_scenes = []
             for scene_content in scene_partitions:
                 end = scene_content["end_paragraph"]
-                scenes.append(chapter[prev_end:end])  # slice from prev to current
+                atomic_scenes.append("\n\n".join(chapter[prev_end:end]))  # directly join here
                 prev_end = end
-            print(f"Received response by LLM with amount of scenes: {len(scenes)}")
+            # stats for scene size / amount of llm cut atomic scenes
+            print(f"Received response by LLM with amount of Atomic Scenes: {len(atomic_scenes)}")
+            avg_atomic_scene = sum(
+                len(self.llm.tokenizer.encode(scene)) for scene in atomic_scenes
+            ) / len(atomic_scenes)
+            print(f"Token avg per Atomic Scene before processing: {avg_atomic_scene:,.2f}")
+            # merge atomic scenes into bigger target semantic scenes up to specified max size
+            max_range = 3000
+            semantic_scenes = []
+            token_counter = 0
+            running_scene = ""
+            for scene in atomic_scenes:
+                tok_current = len(self.llm.tokenizer.encode(scene))
+                # if running scene, together with current scene, under threshold -> add up
+                if token_counter + tok_current <= max_range:
+                    running_scene += scene
+                    token_counter += tok_current
+                # otherwise finalise & reset running scene & counter; add current scene after it
+                else:
+                    # append running scene to list as final processed scene
+                    semantic_scenes.append(running_scene)
+                    # reset running scene & counter
+                    running_scene = ""
+                    token_counter = 0
+                    # add current scene to running scene & update counter
+                    running_scene += scene
+                    token_counter += tok_current
+            # if residual after loop, append rest from running scene
+            if running_scene:
+                semantic_scenes.append(running_scene)
+            # stats for final processed semantic scenes
+            print(f"Amount Semantic scenes after processing: {len(semantic_scenes)}")
+            avg_semantic_scene = sum(
+                len(self.llm.tokenizer.encode(scene)) for scene in semantic_scenes
+            ) / len(semantic_scenes)
+            print(f"Token avg per Semantic Scene after processing: {avg_semantic_scene:,.2f}")
             # add all scenes to list with chapter metadata
-            all_scenes.append((chapter_idx, chapter_title, scenes))
+            all_scenes.append((chapter_idx, chapter_title, semantic_scenes))
 
         return all_scenes
 
@@ -288,8 +324,8 @@ class BookProcessor:
                 # add chapter idx & title if available
                 scene_obj["chapter_index"] = chapter_tpl[0]
                 scene_obj["chapter_title"] = chapter_tpl[1] if chapter_tpl[1] else None
-                # add scene text -> paragraphs joined together again with \n\n
-                scene_obj["text"] = "\n\n".join(scene_content)
+                # add semantic scene text
+                scene_obj["text"] = scene_content
                 # add empty fields for summary & thought plan per scene for later
                 scene_obj["recursive_summary"] = None
                 scene_obj["thought_plan"] = None

@@ -8,23 +8,21 @@ You are an expert literary analyst helping to create an LLM fine-tuning dataset 
   - Y = token count for that paragraph
 
 ## TASK RULES
-- Group the paragraphs into meaningful consecutive scenes consisting of multiple paragraphs with each scene being within the 650 - 1500 tokens range
+- Group the paragraphs into meaningful consecutive scenes consisting of multiple paragraphs with each scene being within the 400 - 1000 tokens range
 - Scene 1 MUST start at paragraph 1. Never skip P1.
 - Scenes must be sequential and non-overlapping. The end_paragraph of Scene N must be exactly one less than the start of Scene N+1
 - Never split a paragraph - paragraphs are atomic units
 
 ### MATH LIMITS
-Target: 650 - 1500 tokens per scene
-- **Hard Max**: 1500 tokens — Never exceed. No exceptions.
-- **Hard Min**: 650 tokens — One exception below.
-**THE ONLY EXCEPTION for Hard Min:** A final scene MAY be under 650 IF AND ONLY IF merging it with the previous scene would exceed 1500. This is the ONLY permitted violation: the "Orphan Exception"
+Target: 400 - 1000 tokens per scene
+- **Ideal Size**: ~600-800 tokens (The "Goldilocks Zone")
+- **Hard Max**: 1000 tokens — Never exceed. No exceptions.
+- **Hard Min**: 400 tokens — One exception: *Flash Exception*: If a crucial distinct scene (like a dream, letter, or flashback) is under 400 but over 200, keep it separate. Do not force merge unrelated topics.
 
 **Rules**:
 1. SUM the "Tok" values to calculate scene length
-2. If a natural break point creates a scene < 650: KEEP ADDING paragraphs until ≥ 650
-3. If multiple valid break points exist, prefer scenes closer to ~1000 tokens = **GOLDILOCKS ZONE**
-4. Final scene < 650? → Merge into previous scene IF combined token amount ≤ 1500. If merge impossible -> "Orphan Exception" applies
-5. Any mid-chapter scene < 650 = INVALID. No exceptions. Fix it.
+2. If a natural break point creates a scene < 400: KEEP ADDING paragraphs until ≥ 400 (except of *Flash Exceptions*)
+3. If multiple valid break points exist, prefer scenes closer to ~600-800 tokens = **GOLDILOCKS ZONE**
 
 ### SEMANTIC RULES
 End at a natural narrative break:
@@ -62,10 +60,10 @@ End at a natural narrative break:
 Before outputting JSON, check EVERY scene:                                                                    
                                                                                                               
 □ Scene 1 starts at P1                                                                                        
-□ Every scene: 650 ≤ tokens ≤ 1500 (except valid orphan)                                                      
-□ Boundaries consecutive: Scene N ends at X → Scene N+1 starts at X+1                                         
-□ Final scene: if < 650, did you attempt merge? If merge ≤ 1500, you MUST merge.                              
-□ No scene > 1500. If found: SPLIT IT before outputting.  
+□ Every scene: 400 ≤ tokens ≤ 1000 (except of *Flash Exceptions*)                                                      
+□ Boundaries consecutive: Scene N ends at X → Scene N+1 starts at X+1                                                                     
+□ No scene > 1000. If found: SPLIT IT before outputting
+□ Every scene respects semantic rules (natural breaks preferred)  
 □ Valid Output Format                                             
                                                                                                               
 **ONE FAILURE = REJECT OUTPUT. Go back and fix.** 
