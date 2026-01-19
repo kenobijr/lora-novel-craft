@@ -142,7 +142,7 @@ class SceneSplitterLLM:
         # with open("./data/json/test_scene_partition_old.json", mode="r", encoding="utf-8") as f:
         #     result = json.load(f)
 
-        # check llm response form & values
+        # base validation
         if not result:
             raise ValueError(f"No api result for prompt: {full_prompt}")
 
@@ -150,9 +150,26 @@ class SceneSplitterLLM:
         if DEBUG_MODE:
             self._debug_llm_call(full_prompt, result)
 
-        assert result["scenes"][0]["end_paragraph"] > 0, "Invalid LLM response format: first scene"
-        # end_paragraph last scene must always equal total amount paragraphs in chapter
-        assert result["scenes"][-1]["end_paragraph"] == amount_p, "Invalid LLM response: last scene"
+        # further validations
+        # scenes are consecutive (no gaps/overlaps)
+        last_boundary = 0
+        for i, scene in enumerate(result["scenes"]):
+            current_boundary = scene["end_paragraph"]
+            # check: strictly increasing -> current boundary must be greater than the one before
+            if current_boundary <= last_boundary:
+                raise ValueError(
+                    f"Validation Failed: Scene {i} boundary ({current_boundary}) "
+                    f"is not greater than previous boundary ({last_boundary})."
+                )
+            last_boundary = current_boundary
+        # end_paragraph final scene must always equal total amount paragraphs in chapter
+        if last_boundary != amount_p:
+            raise ValueError(
+                f"Validation Failed: Last scene ends at paragraph {last_boundary}, "
+                f"but chapter has {amount_p} paragraphs. Text would be lost!"
+            )
+
+        # return validated list
         return result["scenes"]
 
 
