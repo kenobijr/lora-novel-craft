@@ -163,12 +163,14 @@ class SceneSplitterLLM:
                     f"is not greater than previous boundary ({last_boundary})."
                 )
             last_boundary = current_boundary
-        # end_paragraph final scene must always equal total amount paragraphs in chapter
-        if last_boundary != amount_p:
-            raise ValueError(
-                f"Validation Failed: Last scene ends at paragraph {last_boundary}, "
-                f"but chapter has {amount_p} paragraphs. Text would be lost!"
-            )
+        # end_paragraph final scene shouldequal total amount paragraphs in chapter
+        # correct it llm calcs falsely; otherwise text could be lost
+        if last_boundary < amount_p:
+            diff = amount_p - last_boundary
+            print(f"WARN: LLM missed p: Ended at {last_boundary}vs.{amount_p}). Auto-correcting...")
+            # force extend the very last scene to include the missing paragraphs
+            result["scenes"][-1]["end_paragraph"] = amount_p
+            print(f"correction completed; difference of {diff} corrected.")
 
         # return validated list
         return result["scenes"]
