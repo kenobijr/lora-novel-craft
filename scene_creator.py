@@ -29,6 +29,15 @@ from pydantic import BaseModel
 from transformers import AutoTokenizer
 from typing import List, Tuple, Dict
 
+# llm model = openrouter id
+LLM = "qwen/qwen-2.5-72b-instruct"
+# "google/gemini-2.0-flash-lite-001"
+
+SYSTEM_MESSAGE = "./prompts/scene_splitting.md"
+
+# llm debugging
+DEBUG_MODE = True
+DEBUG_DIR = "./data/debug/"
 
 # api key
 load_dotenv()
@@ -40,7 +49,7 @@ if not api_key:
 # pydantic classes for llm response format enforcement
 class SceneBoundary(BaseModel):
     """ single scene boundary marker """
-    token_math_log: str
+    final_token_sum: str
     end_paragraph: int
 
 
@@ -55,13 +64,15 @@ class SceneSplitterLLM:
     - parses world context md file as  book metadata needed for llm call
     - manages & formats prompts / systemmessages
     """
-    def __init__(self, world_context_md: str):
+    def __init__(self, world_context_md: str, book_json: str):
         # parse & save word context md file of book
         with open(world_context_md, mode="r", encoding="utf-8") as f:
             self.wc = f.read()
         # init system_message
-        with open("./prompts/scene_splitting.md", mode="r", encoding="utf-8") as f:
+        with open(SYSTEM_MESSAGE, mode="r", encoding="utf-8") as f:
             self.sm = f.read()
+        # save cleaned book title for debugging
+        self.title = os.path.basename(book_json).removesuffix(".json")
         # load qwen 3 tokenizer from transformers
         self.tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
         # init llm
@@ -85,6 +96,20 @@ class SceneSplitterLLM:
 </text_paragraphs>
 """
 
+    def _debug_llm_call(self, prompt: str, response: str) -> None:
+        """
+        - switch on / off with global
+        - if activated, on every llm call prompt & response are saved into debug folder
+        """
+        os.makedirs(DEBUG_DIR, exist_ok=True)
+        ts = datetime.now().strftime("%H%M%S_%f")
+        prompt_path = os.path.join(DEBUG_DIR, f"debug_prompt.{self.title}.{ts}.md")
+        response_path = os.path.join(DEBUG_DIR, f"debug_llm.{self.title}.{ts}.json")
+        with open(prompt_path, mode="w", encoding="utf-8") as f:
+            f.write(prompt)
+        with open(response_path, mode="w", encoding="utf-8") as f:
+            json.dump(response, f, indent=2, ensure_ascii=False)
+
     def get_llm_scene_partitions(self, chapter_formatted: str, amount_p: int) -> List[Dict]:
         """
         - get formatted chapter content for 1 book chapter ready to send to llm
@@ -95,7 +120,7 @@ class SceneSplitterLLM:
         full_prompt = self._create_systemmessage(chapter_formatted)
         # prompt llm
         response = self.client.chat.completions.create(
-            model="google/gemini-2.0-flash-lite-001",
+            model=LLM,
             messages=[{"role": "user", "content": full_prompt}],
             temperature=0.1,
             response_format={
@@ -105,6 +130,12 @@ class SceneSplitterLLM:
                     "strict": True,
                     "schema": ScenePartitionResponse.model_json_schema()
                 }
+            },
+            # fits only on qwen3!!!
+            extra_body={                                                       
+                "provider": {                                               
+                    "only": ["DeepInfra"]                                            
+                }                                                                
             }
         )
         result = json.loads(response.choices[0].message.content)
@@ -116,13 +147,10 @@ class SceneSplitterLLM:
         # check llm response form & values
         if not result:
             raise ValueError(f"No api result for prompt: {full_prompt}")
-        
-        # DEBUGGING
-        ts = datetime.now().strftime("%H%M%S_%f")
-        with open(f"./data/debug/debug_full_prompt{ts}.md", mode="w", encoding="utf-8") as f:
-            f.write(full_prompt)
-        with open(f"./data/debug/debug_llm_partitioning{ts}.json", mode="w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2)
+
+        # if debug mode activated prompt & llm response will be saved
+        if DEBUG_MODE:
+            self._debug_llm_call(full_prompt, result)
 
         assert result["scenes"][0]["end_paragraph"] > 0, "Invalid LLM response format: first scene"
         # end_paragraph last scene must always equal total amount paragraphs in chapter
@@ -147,7 +175,7 @@ class BookProcessor:
         with open(book_json, mode="r", encoding="utf-8") as f:
             self.book_json = json.load(f)
         # init llm
-        self.llm = SceneSplitterLLM(world_context_md)
+        self.llm = SceneSplitterLLM(world_context_md, book_json)
         # raw text splitted into chapters during processing
         self.chapters = None
         # list of final semantic scene objects as saved to target json
@@ -187,7 +215,7 @@ class BookProcessor:
         -> get boundaries with "end_paragraph" back for semanctic scenes in form:
         [
             {
-            "token_math_log": "P1(4) + P2(95) ...+ P5(196) = 884 tokens. Valid range (650-1500).",
+            "final_token_sum": "P1(4) + P2(95) ...+ P5(196) = 884.",
             "end_paragraph": 5
             },
         ]
