@@ -14,7 +14,6 @@ Finetune SOTA small-midsize Open Source LLMs with LoRA / QLoRA to become skilled
 - Total params: 30.5B
 - Active params: 3.3B (MoE: 128 experts, 8 active per token)
 - Context: 256K native, extendable to 1M tokens
-- Special feature: Thinking mode (outputs <think> reasoning)
 
 https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 
@@ -31,8 +30,9 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
   - Recursive Summary: ~400 tokens
   - Instruction / Prompt: ~50 tokens
   - Buffer diverse: ~50 tokens
-  - Chain of Thought (CoT) : ~1500 tokens
-- Scene / Narrative: ~650-1500 tokens (~500 - 1150 words)
+  -> Context Total: ~1050 tokens
+- Scene / Narrative: ~2000-3000 tokens (~1500 - 2300 words)
+-> Share Narrative vs. Context: 2:1 to 3:1
 
 ### Stage 1: Convert .epub to .md via Pandoc (CLI) & manual base cleaning
 - Convert .epub inot .md with Pandoc to to clean XML / HTML tags but preserve semantic logic (italics / bold ...)
@@ -75,7 +75,6 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
       "instruction": null,
       "text": "some text content....",
       "recursive_summary": null, 
-      "thought_plan": null
     }
   ]
 }
@@ -96,20 +95,27 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 
 #### Stage 5: Parse Chapters into Semanctic Scenes
 - Parse Chapters into base unit "Semantic Scenes":
-  - ~650-1500 tokens (~500 - 1150 words) per Scene
-  - Intelligently parsed by some LLM
+  - ~~2000-3000 tokens (~1500 - 2300 words) per Scene
+  - Intelligently parsed by some LLM & with deterministic python script
   - Inject book world context for better understanding
   - Chapter numbers / titles
 - Add each Scene into scenes array of the respective book json
 
-- scene data model:
-  - "scene_id" (Unique identifier 1-n)
-  - "instruction": 
-    - null for all "normal" narrative cases, which will draw the same instruction "create scene..." together with same systemmessage from other file
-    - for special cases / references (forword / glossary) we will need a special instruction, saved at the scene
-    - script must check: if instruction null -> take default; else -> take instruction saved at scene
+{
+  "scene_id": 2,
+  "chapter_index": 1,
+  "chapter_title": "My Eagle",
+  "text": "........."
+  "recursive_summary": null,
+},
 
-- logic to parse scenes:
+- LLM model / SDK:
+  - Gemini 2.0 Flash Lite / qwen/qwen-2.5-72b-instruct
+  - OpenAI SDK
+  - JSON Schema Enforcement enabled
+
+##### Logic to parse scenes
+**1. LLM splits into semantic scenes atomic unit**
   - read in book -> split up into chapters -> loop through & process each chapter
   - preprocess each chapter by splitting it by \n\n into paragraphs and number each one
   - add amount tokens of each paragraph to obj with tiktokenizer
@@ -123,25 +129,37 @@ workers began to gather.
 {
   "scenes": [
     {
-      "token_math_log": "P1(4) + P2(95) + P3(139) + P4(450) + P5(196) = 884 tokens. Valid range (650-1500).",
+      "final_token_sum": "P1(4) + P2(95) + P3(139) + P4(450) + P5(196) = 884",
       "end_paragraph": 5
     },
   ]
 }
 - token_math_log:
-  - internal "Scratchpad" for llm token calculation
-  - without llms failed to calc the tokens
-  - probably due to being forced strictly into json output structure enforcement
+  - internal "final_token_sum" for llm token calculation
 
-- LLM model / SDK:
-  - Gemini 2.0 Flash Lite
-  - OpenAI SDK
-  - JSON Schema Enforcement enabled
+**2. Python script merges LLM semantic scenes deterministically**
+- LLM output typically comes with entropy around token range, but good semantic breakpoints!
+- Merge them together into ~2000-3000 token range scenes as final script output
 
-
-
+**3. Insert special content as references / separate scenes**
+- e.g. *The Iron Heel*: Bake in the Foreword written by Anthony Meredith (historian) in another time ~2600 AD (419 B.O.M.). and another Style: Academic, distant, analytical.
+-  Keep it as Scene 00. It establishes the "truth" of the world (that the Iron Heel eventually falls), which creates dramatic irony.
+- But create different systemmessage (vs. default):
+  - Role: "Future Historian."
+  - Instruction: "Write the academic foreword to the 'Everhard Manuscript,' analyzing its historical significance from the perspective of the 27th Century."
 
 
 ### Stage 6: Create recursive LLM summaries
 - Recursive / Rolling Memory (narrative summary up to exactly current scene) per Scene
 - Add them to the Jsons
+
+
+## After MVP
+- Add Chain of Thought (CoT) into the context for reasoning models
+
+## Appendix
+
+### Example Book GH:
+- Jack London - The Iron Heel
+- Public Domain: https://www.gutenberg.org/ebooks/1164
+- Used version: EPUB (no images, older E-readers)

@@ -25,8 +25,7 @@ CLAUDE.md
 mvp.md
 
 # data (show 1 book E2E for data prep pipeline)
-# exclude archive completely
-data/archive/
+
 # base epub
 data/epub/*
 !data/epub/Jack_London-The_Iron_Heel.epub
@@ -39,15 +38,20 @@ data/md_clean/*
 !data/md_clean/Jack_London-The_Iron_Heel-foreword.md
 !data/md_clean/Jack_London-The_Iron_Heel-world_context.md
 # json raw
-data/json_raw/*
-!data/json_raw/Jack_London-The_Iron_Heel.json
+data/json_base/*
+!data/json_base/Jack_London-The_Iron_Heel.json
+
 #json
-json
+data/json
+data/debug
+
+#archives
+prompts/archive
+data/archive/
+
 
 # diverse documents
 docs/
 
-# api
-scripts/api_limit.py
 
 
