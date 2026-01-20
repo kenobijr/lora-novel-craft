@@ -153,13 +153,74 @@ workers began to gather.
 - Recursive / Rolling Memory (narrative summary up to exactly current scene) per Scene
 - Add them to the Jsons
 
+### Stage 7: Define special tokens & prompts
+- Add new TBD special tokens; use existing ones <think> / </think>
+- Add suitable prompts <user>......</user> / <assistant> , .....
+
+### Stage 8: Final training format JSONL with prompts & special tokens
+- run a simple "Compiler Script" that flattens the JSONs + related content into efficient JSONL
+- this format is native to HuggingFace datasets library and Industry standard for LLM fine-tuning
+
+## Train -> Dataset Scale (DRAFT)
+
+For 5-10 books, assuming 50,000 words per book, we have ~500,000 words (~750,000 tokens).
+
+Chunk size: 4096 tokens.
+
+VRAM Usage	~18-22 GB (Fits on 1x RTX 3090/4090)
+
+Total Chunks: ~180 - 200.
+
+This is a "Small Data" regime. To prevent overfitting (where the model memorizes the books verbatim), we must use:
+
+High LoRA Rank (r=64 or 128): To allow sufficient capacity for stylistic adaptation.
+
+Low Epochs (3-5): Monitoring validation loss strictly.
+
+## Train -> Model Tuning / LoRA setup / Train strategy
+Model Architecture (Confirmed from HuggingFace)
+
+  Qwen3-30B-A3B-Thinking-2507:
+  - Total params: 30.5B
+  - Active params: 3.3B (MoE: 128 experts, 8 active per token)
+  - Context: 256K native, extendable to 1M tokens
+  - Special feature: Thinking mode (outputs <think> reasoning)
+
+  ---
+  QLoRA Compatibility Analysis
+
+  1. Unsloth Support:
+    - Officially supports Qwen3-30B-A3B QLoRA fine-tuning
+    - Claims 17.5GB VRAM (optimized) to ~40GB (realistic for full sequences)
+    - 2x faster training, 70% less VRAM vs. standard PEFT
+    - Router layer disabled by default (correct approach for MoE)
+  2. MS-SWIFT Support:
+    - Full support for LoRA/QLoRA/DoRA on Qwen3-MoE
+    - Production-ready framework
+  3. MoE + Quantization:
+    - AWS successfully fine-tuned Mixtral 8x7B MoE with QLoRA
+    - MoEs work especially well with quantization - experts less affected by lower precision
+    - bitsandbytes + PEFT fully supports MoE architectures
+
+## Machine
+  - RunPod: ~$0.30-0.50/hr for RTX 4090 (24GB VRAM) - sufficient for Mistral Nemo 12B QLoRA
+  - Vast.ai: Similar pricing, more options
+  - Lambda Labs: ~$1.10/hr for A100 40GB - overkill but very stable
+  - Recommendation: RunPod or Vast.ai with RTX 4090 (24GB) for cost efficiency
+
+## Evaluation
+Perplexity alone won't capture creative quality - you'll need manual review
+
+
+
+
 
 ## After MVP
 - Add Chain of Thought (CoT) into the context for reasoning models
 
-## Appendix
-
-### Example Book GH:
+## Example Book GH:
 - Jack London - The Iron Heel
 - Public Domain: https://www.gutenberg.org/ebooks/1164
 - Used version: EPUB (no images, older E-readers)
+
+## Appendix

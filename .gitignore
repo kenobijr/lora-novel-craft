@@ -50,8 +50,9 @@ prompts/archive
 data/archive/
 
 
-# diverse documents
+# diverse documents / not relevant scipts
 docs/
+wc.py
 
 
 
