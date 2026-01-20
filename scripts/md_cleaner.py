@@ -100,13 +100,6 @@ def clean_inscriptions(text: str) -> str:
     return re.sub(pattern, merge_and_upper, text)
 
 
-def standardize_scene_breaks(text: str) -> str:
-    # Matches the divider AND any trailing/leading whitespace/newlines
-    # Replaces with exactly one blank line above and below
-    pattern = r'\n+\s*\\?\*[\s\\?\*]+\s*\n+'
-    return re.sub(pattern, '\n\n***\n\n', text)
-
-
 def process_footnotes(text: str) -> str:
     """ handle footnotes: extract, replace inline refs, remove blocks """
     footnotes = extract_footnotes(text)
@@ -145,8 +138,9 @@ def remove_artifacts(text: str) -> str:
 
 
 def normalize_formatting(text: str) -> str:
-    # standardize scene breaks
-    text = standardize_scene_breaks(text)
+    # scene breaks: matches divider & any trailing/leading whitespace/newlines & replace with \n\n
+    pattern = r"\n+\s*\\?\*[\s\\?\*]+\s*\n+"
+    text = re.sub(pattern, "\n\n", text)
     # normalize multiple consecutive line breaks to single line break
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
