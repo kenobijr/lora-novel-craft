@@ -32,8 +32,11 @@ from typing import List, Tuple, Dict
 # llm model = openrouter id
 LLM = "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
-
 SYSTEM_MESSAGE = "./prompts/scene_splitting.md"
+
+# scene creation
+
+MAX_SCENE_SIZE = 3000
 
 # llm debugging
 DEBUG_MODE = True
@@ -167,10 +170,12 @@ class SceneSplitterLLM:
         # correct it llm calcs falsely; otherwise text could be lost
         if last_boundary < amount_p:
             diff = amount_p - last_boundary
+            print("---------------------------------------------")
             print(f"WARN: LLM missed p: Ended at {last_boundary}vs.{amount_p}). Auto-correcting...")
             # force extend the very last scene to include the missing paragraphs
             result["scenes"][-1]["end_paragraph"] = amount_p
             print(f"correction completed; difference of {diff} corrected.")
+            print("---------------------------------------------")
 
         # return validated list
         return result["scenes"]
@@ -192,6 +197,8 @@ class BookProcessor:
         # parse & save content from book json file: structured book meta data
         with open(output_book_json, mode="r", encoding="utf-8") as f:
             self.book_json = json.load(f)
+        # save original wc from book json sep for stats
+        self.orig_wc = self.book_json["meta"]["word_count"]
         # init llm -> pass world context str extracted from book json
         self.llm = SceneSplitterLLM(self.book_json["meta"]["world_context"], output_book_json)
         # raw text splitted into chapters during processing
@@ -264,15 +271,14 @@ class BookProcessor:
             ) / len(atomic_scenes)
             print(f"Token avg per Atomic Scene before processing: {avg_atomic_scene:,.2f}")
             # merge atomic scenes into bigger target semantic scenes up to specified max size
-            max_range = 3000
             semantic_scenes = []
             token_counter = 0
             running_scene = ""
             for scene in atomic_scenes:
                 tok_current = len(self.llm.tokenizer.encode(scene))
                 # if running scene, together with current scene, under threshold -> add up
-                if token_counter + tok_current <= max_range:
-                    running_scene += scene
+                if token_counter + tok_current <= MAX_SCENE_SIZE:
+                    running_scene += ("\n\n" + scene) if running_scene else scene
                     token_counter += tok_current
                 # otherwise finalise & reset running scene & counter; add current scene after it
                 else:
@@ -293,6 +299,7 @@ class BookProcessor:
                 len(self.llm.tokenizer.encode(scene)) for scene in semantic_scenes
             ) / len(semantic_scenes)
             print(f"Token avg per Semantic Scene after processing: {avg_semantic_scene:,.2f}")
+            print("---------------------------------------------")
             # add all scenes to list with chapter metadata
             all_scenes.append((chapter_idx, chapter_title, semantic_scenes))
 
@@ -316,7 +323,6 @@ class BookProcessor:
         - write to target file one time after loop
         """
         for chapter_tpl in scenes:
-
             # get global book scene counter
             global_scene_counter = self.book_json["meta"]["total_scenes"]
             for scene_number, scene_content in enumerate(chapter_tpl[2], start=1):
@@ -326,15 +332,17 @@ class BookProcessor:
                 # add chapter idx & title if available
                 scene_obj["chapter_index"] = chapter_tpl[0]
                 scene_obj["chapter_title"] = chapter_tpl[1] if chapter_tpl[1] else None
+                scene_obj["instruction"] = None
                 # add semantic scene text
                 scene_obj["text"] = scene_content
-                # add empty fields for summary & thought plan per scene for later
                 scene_obj["recursive_summary"] = None
-                scene_obj["thought_plan"] = None
                 # add scene obj to book & write to json
                 self.book_json["scenes"].append(scene_obj)
             # update global scene counter with all scenes of a chapter
             self.book_json["meta"]["total_scenes"] += len(chapter_tpl[2])
+        # update global word counter
+        full_text = " ".join([scene["text"] for scene in self.book_json["scenes"]])
+        self.book_json["meta"]["word_count"] = len(full_text.split())
         # write to json
         with open(self.book_json_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book_json, f, indent=2, ensure_ascii=False)
@@ -384,7 +392,12 @@ class BookProcessor:
         print("---------------------------------------------")
         print("Start processing scene objs and save to target JSON file ...")
         self._save_scenes(scenes)
-        print(f"Did create {len(self.book_json['scenes'])} semantic scenes in total.") 
+        print(f"Did create {len(self.book_json['scenes'])} semantic scenes in total.")
+        print("---------------------------------------------")
+        # print book wc from meta before op vs. wc of all scenes
+        print(f"Original Word Count from book meta (before operation): {self.orig_wc}")
+        print(f"Word Count all scenes combined (after): {self.book_json["meta"]["word_count"]}")
+        print("---------------------------------------------")
         print(f"Book JSON file written to: {self.book_json_path}")
         print("-------Operation completed successfully.-------")
 
