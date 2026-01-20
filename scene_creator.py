@@ -1,22 +1,37 @@
 """
-Target is to split up a whole novel into logical "Semantic Scene" chunks (smaller than chapters) to
-improve the dataset quality vs. splitting into fixed / repetitive word / token boundaries.
-A judge / teacher LLM is tasked to split each book chapter into these Semantic Scenes which must be
-within a defined token / word amount range.
-To enable the LLM to "count" words / tokens, book chapters are splitted into smaller paragraphs.
-These paragraphs are numbered consecutively and their respective token amount is counted, too.
-With these information the LLM returns boundaries and paragraphs are merged into Semantic Scenes.
+Split up a novel saved in .md into logical Semantic Scene chunks (smaller than chapters) as
+perparation to use them in a dataset for LLM Finetuning.
+- judge LLM is tasked to split each book chapter into "Atomic Scenes"
+- after this scenes are merged into final Semantic Scenes up to a specified token boundary
 
-Process:
-    1. map book md str into list of chapters along anchors: # Chapter 1, ...
-        str -> ['# Chapter 1\n\nMr. Jon.... , '# Chapter 2 ..]
-    2. map chapters into list of paragraphs splitted by \n\n:
-        List[str] -> [['# Chapter 1', 'Mr. Jones..... ]
-    3. map list of paragraphs to list of semantic scenes splited along smart llm defined boundaries:
-        List[List[paragraphs]] -> List[List[scenes]]
-
-          - add scenes to target book json
-
+Files needed via CLI:
+1. input_book.md
+- must contain cleaned book text for n chapters
+- chapters must be separated by "# Chapter 1" or "# Chapter 2: Some title" as context anchors
+2. output_book.json
+- must be in following format and contain "world context" content about book (is send to llm)
+{
+  "meta": {
+    "book_id": "iron_london",
+    "title": "The Iron Heel",
+    "author": "Jack London",
+    "word_count": 86743,
+    "total_chapters": 25,
+    "total_scenes": 0,
+    "world_context": "....."
+  },
+  "scenes": []
+}
+- "word_count" and counter "total_scenes" are updated in process
+- semantic scenes are appended to "scenes" list in following format:
+{
+    "scene_id": 2,
+    "chapter_index": 1,
+    "chapter_title": "My Eagle",
+    "instruction": null,
+    "text": "# Chapter 1: "My Eagle\n\nThe .....",
+    "recursive_summary": null
+}
 """
 import sys
 import os
@@ -34,9 +49,10 @@ LLM = "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
 SYSTEM_MESSAGE = "./prompts/scene_splitting.md"
 
-# scene creation
-
+# maximum token amount semantic scene
 MAX_SCENE_SIZE = 3000
+# minimum token amount paragraph block to deliver to llm to cut scenes
+MIN_P_SIZE = 75
 
 # llm debugging
 DEBUG_MODE = True
@@ -347,15 +363,46 @@ class BookProcessor:
         with open(self.book_json_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book_json, f, indent=2, ensure_ascii=False)
 
-    def _split_to_paragraphs(self) -> List[List[str]]:
+    def _split_to_p_blocks(self) -> List[List[str]]:
         """
-        - split up each chapter into into list of paragraphs splitted by \n\n:
-        - List[str] -> [['# Chapter 1', 'Some text..... ]
+        - split up each chapter into into list of paragraph blocks splitted by \n\n:
+        - each p_block must have min size -> prevent bloating llm with many p from (e.g. dialogues)
+        - target format: - List[str] -> [['# Chapter 1', 'Some text..... ]
         """
-        chapter_paragraphs = [chapter.split("\n\n") for chapter in self.chapters]
-        # filter empty paragraphs within each chapter
-        chapter_paragraphs = [[p for p in chapter if p.strip()] for chapter in chapter_paragraphs]
-        return chapter_paragraphs
+        processed_chapters = []
+        for chapter_text in self.chapters:
+            # split text along \n\n and filter empty paragraphs within each chapter
+            raw_paragraphs = [p.strip() for p in chapter_text.split("\n\n") if p.strip()]
+            chapter_blocks = []
+            bucket = ""
+            bucket_counter = 0
+            for p in raw_paragraphs:
+                # calc size once
+                p_tok = len(self.llm.tokenizer.encode(p))
+                # case 1: bucket is empty
+                if not bucket:
+                    # if atomic paragraph is greater than min size append it to p_blocks else bucket
+                    if p_tok >= MIN_P_SIZE:
+                        chapter_blocks.append(p)
+                    else:
+                        # in this case bucket is always empty, so add without \n\n added to p
+                        bucket += p
+                        bucket_counter += p_tok
+                # case 2: content in bucket
+                else:
+                    # if p & bucket content are greater than threshold, empty bucket; else add to it
+                    if (bucket_counter + p_tok) >= MIN_P_SIZE:
+                        chapter_blocks.append(f"{bucket}\n\n{p}")
+                        bucket = ""
+                        bucket_counter = 0
+                    else:
+                        bucket += f"\n\n{p}"
+                        bucket_counter += p_tok
+            # flush bucket after loop if not empty
+            if bucket:
+                chapter_blocks.append(bucket)
+            processed_chapters.append(chapter_blocks)
+        return processed_chapters
 
     def _text_to_chapters(self) -> List[str]:
         """
@@ -383,7 +430,7 @@ class BookProcessor:
         self.chapters = self._text_to_chapters()
         print(f"Splitted chapters into list: {len(self.chapters)}")
         print("---------------------------------------------")
-        chapter_paragraphs = self._split_to_paragraphs()
+        chapter_paragraphs = self._split_to_p_blocks()
         print("Splitted chapters into paragraphs as additional level...")
         print(f"Amount paragraphs in 1st chapter after splitting: {len(chapter_paragraphs[0])}")
         print("---------------------------------------------")
