@@ -35,8 +35,7 @@ If at least one of this requirements is not met, stop immediately and state "Inv
 
 ## 3.1 Use the following json as template
 
-- Each json consists of an meta object with data about the book and an scenes array with multiple scenes
-- The scenes array elements and certain data values will we created and updated in some downstream process
+- Each json consists of an meta object with data about the book and an scenes array
 - Your task is to create exactly one such base json per input .md file
 
 {
@@ -46,27 +45,15 @@ If at least one of this requirements is not met, stop immediately and state "Inv
     "author": "Jack London",
     "word_count": 17673,
     "total_chapters": 12,
-    "total_scenes": null,
-    "global_world_context": null
+    "total_scenes": 0,
+    "world_context": null
   },
-  "scenes": [
-    {
-      "scene_id": null,
-      "chapter_index": null,
-      "scene_index": null,
-      "word_count": null,
-      "chapter_title": null,
-      "scene_context": null,
-      "text": null,
-      "recursive_summary": null,
-      "thought_plan": null
-    }
-  ]
+  "scenes": []
 }
 
 ## 3.2 Json creation rules: structure & attributes
 
-- Create the meta and scenes objects, with one scene created within the array
+- Create the meta and scenes objects
 - Take all the attribute names as is from the template (e.g. meta, book_id, chapter_index, ...)
 - Follow these rules to define the values:
 - meta object:
@@ -82,10 +69,10 @@ If at least one of this requirements is not met, stop immediately and state "Inv
         - Chapters in the .md files are formatted like "# Chapter 1" or "Chapter 1: Some Title"
         - use bash command `grep -c "^# Chapter" filepath` to count chapters (DO NOT read the whole file content)
         - e.g. "grep -c "^# Chapter" ./data/md_clean/Jack_London-The_Iron_Heel.md" for The Iron Heel by Jack London
-    - "total_scenes" & "global_world_context": null
+    - "total_scenes": 0
+    - "world_context": null
 - scene object:
-    - Create the scenes array with exactly ONE element inside
-    - This single scene element must have ALL keys from the template, each set to null as in the template
+    - Create only one empty array in it
 
 # Phase 4: Save the json file(s)
 
