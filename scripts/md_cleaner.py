@@ -39,11 +39,12 @@ def replace_inline_footnotes(text: str, footnotes: dict[str, str]) -> str:
     - replace inline footnote references with [Note: text]
     - regex to match: <a href="#...fn-N" id="...fnref-N"...><sup>[N]</sup></a>
     - supports both integer (1) and decimal (2.1) footnote numbers
+    - deliver (content) vs. [Note: content] to prevent confusing llm with system syntax
     """
     def replacer(match):
         footnote_num = match.group(1)
         if footnote_num in footnotes:
-            return f" [Note: {footnotes[footnote_num]}]"
+            return f" ({footnotes[footnote_num]})"
         return match.group(0)  # keep original if not found
 
     pattern = r'<a href="#[^"]*?fn-(\d+(?:\.\d+)?)"[^>]*><sup>\[[\d.]+\]</sup></a>'
