@@ -16,7 +16,7 @@ You are an expert literary analyst helping to create an LLM fine-tuning dataset 
 ### MATH LIMITS
 Target: 400 - 1000 tokens per scene
 - **Ideal Size**: ~600-800 tokens (The "Goldilocks Zone")
-- **Hard Max**: 1000 tokens — Never exceed. No exceptions.
+- **Hard Max**: 1000 tokens — Never exceed, unless a single paragraph already exceeds 1000 (unavoidable; continue)
 - **Hard Min**: 400 tokens — One exception: *Flash Exception*: If a crucial distinct scene (like a dream, letter, or flashback) is under 400 but over 200, keep it separate. Do not force merge unrelated topics.
 
 **Rules**:
