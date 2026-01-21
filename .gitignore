@@ -24,22 +24,24 @@ CLAUDE.md
 #project docs
 mvp.md
 
-# data (show 1 book E2E for data prep pipeline)
-
-# base epub
+# input books: show "Jack London - The Iron Heel" E2E for data prep pipeline)
+# epub
 data/epub/*
 !data/epub/Jack_London-The_Iron_Heel.epub
-# base md
+# md raw
 data/md_raw/*
 !data/md_raw/Jack_London-The_Iron_Heel.md
-# clean md
+# md_clean
 data/md_clean/*
 !data/md_clean/Jack_London-The_Iron_Heel.md
 !data/md_clean/Jack_London-The_Iron_Heel-foreword.md
 !data/md_clean/Jack_London-The_Iron_Heel-world_context.md
-# json raw
+# json base
 data/json_base/*
 !data/json_base/Jack_London-The_Iron_Heel.json
+# json scenes
+data/json_scenes/*
+!data/json_scenes/Jack_London-The_Iron_Heel.json
 
 #json
 data/json
@@ -49,10 +51,8 @@ data/debug
 prompts/archive
 data/archive/
 
-
 # diverse documents / not relevant scipts
 docs/
-wc.py
 
 
 

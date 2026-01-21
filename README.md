@@ -21,7 +21,7 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 
 ## Dataset Pipeline
 
-### Context Len / Token Math
+**Context Len / Token Math**
 - Total context length of training data: 4096 tokens (1.3 tokens per word) for efficient Finetuning
     - Must not be exceeded during train due to fixed setup
 - Context Injection (prepended before Scene / Narrative):
@@ -32,31 +32,28 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
   - Buffer diverse: ~50 tokens
   -> Context Total: ~1050 tokens
 - Scene / Narrative: ~2000-3000 tokens (~1500 - 2300 words)
+
 -> Share Narrative vs. Context: 2:1 to 3:1
 
-### Stage 1: Convert .epub to .md via Pandoc (CLI) & manual base cleaning
+### Stage 1: Convert .epub to .md via Pandoc (CLI) & manual cleaning -> ./data/md_raw/
 - Convert .epub inot .md with Pandoc to to clean XML / HTML tags but preserve semantic logic (italics / bold ...)
 ```pandoc input.epub -f epub -t gfm-smart --wrap=none -o output.md```
 - Manual / Claude Code pre-cleaning & formatting:
-  1. Manually delete noise: Title Page / End of Book / ...
-  2. Standardize Chapter Headers: # Chapter 1: My Eagle
-  3. Look for noise in content, e.g. "{#9780063068452_Chapter_21.xhtml_page_136 .right_1 .pagebreak title="136"}" and adapt md_cleaner script regardingly
-- Split content into 2 separate .md files, if related metadata available in book:
+  1. Manually delete noise: Title Page / End of Book / ... or add related logic to downstream md_cleaner.py script
+  2. Standardize Chapter Headers as anchors: "# Chapter 1: My Eagle" or "# Chapter 1: My Eagle"
+- Split book into separate .md files for certain reference data (e.g. character list, ....)
   1. Novel / Story / Narrative
-  2. "World Rules" meta content / context
-- **Novel Target Format**:
-  - Content Anchors: "# Chapter 1" (only arab numbers)
-  - If section title exists: "# Chapter 1: My Eagle"
+  2. Reference data
 
-### Stage 2: Clean .md with script
+### Stage 2: Clean .md with script -> ./data/md_clean/
 - Process common anchors / css attritbutes / footnote patterns  into .md format
 - Clean noise & normalise formatting
 - save as cleaned .md
-- LINK TO SCRIPT [...]
+- [md_cleaner.py](./scripts/md_cleaner.py)
 
-### Stage 3: Create Base .json files
+### Stage 3: Create Base .json files -> ./data/json_base/
 - Create 1 json template file per book for 1x metadata and n scenes
-- Template:
+- Data format:
 {
   "meta": {
     "book_id": "iron_heel_london",
@@ -64,89 +61,69 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
     "author": "Jack London",
     "word_count": 17673,
     "total_chapters": 12,
-    "total_scenes": 36,
-    "world_context": "..."
+    "total_scenes": 0,
+    "world_context": null
   },
-  "scenes": [
-    {
-      "scene_id": 1,
-      "chapter_index": 1,
-      "chapter_title": null,
-      "instruction": null,
-      "text": "some text content....",
-      "recursive_summary": null, 
-    }
-  ]
+  "scenes": []
 }
-
 - Use Claude Code agent; let it calc meta world_count & total_chapters with bash calls; fill the rest with "null"
-- LINK TO Agent [...]
+- [base_json_creator_agent](./.claude/agents/agent-base_json_creator.md)
 
-#### Stage 4: Create World Context for each book
+#### Stage 4: Create World Context for each book -> ./data/json_base/
 - Create "World Context" / "World Rules" as constitution for each book
 - Must not exceed 400 tokens -> 300 - 320 words
-- Will be used downstream to split up chapters into scenes intelligently and for recursive summarys
+- Will be added into training data and to give LLMs context for splitting chapters into Semantic scenes and for creating recursive summarys
 - Chosen model: **Gemini 3 Flash**:
   - 1M token context = can process a 500K word book in one single pass
   - Cheap
-  - SOTA performace by Gemini model family
-- Save it into json meta.worldcontext attribute
-- LINK to systemmessage: [...]
+- Save response into json meta["world_context"]
+- [world_context_creation_prompt](./prompts/world_context_creation.md)
 
-#### Stage 5: Parse Chapters into Semanctic Scenes
-- Parse Chapters into base unit "Semantic Scenes":
-  - ~~2000-3000 tokens (~1500 - 2300 words) per Scene
-  - Intelligently parsed by some LLM & with deterministic python script
-  - Inject book world context for better understanding
-  - Chapter numbers / titles
-- Add each Scene into scenes array of the respective book json
-
-{
-  "scene_id": 2,
-  "chapter_index": 1,
-  "chapter_title": "My Eagle",
-  "text": "........."
-  "recursive_summary": null,
-},
-
-- LLM model / SDK:
-  - Gemini 2.0 Flash Lite / qwen/qwen-2.5-72b-instruct
+#### Stage 5: Parse Book text into Semanctic Scenes -> ./data/json_scenes/
+- Parse Chapters into base unit "Semantic Scenes" (smaller than chapters)
+- Target: ~2000-3000 tokens (~1500 - 2300 words) per Scene
+- Tokenizer: "Qwen/Qwen3-30B-A3B-Thinking-2507" (transformers)
+##### Logic Scene creation (Chapter by Chapter):
+  1. Split into paragraphs with sep: "\n\n"
+  2. Merge to paragraph blocks of min size: 75 tokens
+  3. Task LLM to merge paragraph blocks along semantic breakpoints (setting change, location)
+    - Range: 400 - 1000 tokens per scene
+    - "Goldilocks Zone": ~600-800 tokens
+  4. Create final **Semantic Scenes** by merging LLM cut scenes to target range: 3000k tokens
+##### LLM model / SDK:
+  - qwen-2.5-72b-instruct / Gemini 2.0 Flash Lite / Gemini 2.5 Pro
   - OpenAI SDK
   - JSON Schema Enforcement enabled
+##### Data Format Scene
 
-##### Logic to parse scenes
-**1. LLM splits into semantic scenes atomic unit**
-  - read in book -> split up into chapters -> loop through & process each chapter
-  - preprocess each chapter by splitting it by \n\n into paragraphs and number each one
-  - add amount tokens of each paragraph to obj with tiktokenizer
-  - chapter text block format for llm in plain text with inline paragraph metadata:
-[P:1|Tok:23] The morning sun cast long shadows across the courtyard as the
-workers began to gather.
-[P:2|Tok:4] I moved to stand beside him...
-  - Send to LLM with world context + instruction: "group into scenes of 650-1500 tokens"
-  - ADD LINK TO PROMPT [...]
-  - llm response must be strictly in this json format with json enforcement enabled:
 {
+  "meta": {
+    "book_id": "iron_heel_london",
+    "title": "The Iron Heel",
+    "author": "Jack London",
+    "word_count": 86487,
+    "total_chapters": 25,
+    "total_scenes": 54,
+    "world_context": "# World Context\n\n## TONE & STYLE\n- Era/Genre: Early 20th-century"
+  },
   "scenes": [
     {
-      "final_token_sum": "P1(4) + P2(95) + P3(139) + P4(450) + P5(196) = 884",
-      "end_paragraph": 5
+      "scene_id": 2,
+      "chapter_index": 1,
+      "chapter_title": "My Eagle",
+      "instruction": null,
+      "text": "",
+      "recursive_summary": null
     },
   ]
 }
-- token_math_log:
-  - internal "final_token_sum" for llm token calculation
 
-**2. Python script merges LLM semantic scenes deterministically**
-- LLM output typically comes with entropy around token range, but good semantic breakpoints!
-- Merge them together into ~2000-3000 token range scenes as final script output
-
-**3. Insert special content as references / separate scenes**
-- e.g. *The Iron Heel*: Bake in the Foreword written by Anthony Meredith (historian) in another time ~2600 AD (419 B.O.M.). and another Style: Academic, distant, analytical.
--  Keep it as Scene 00. It establishes the "truth" of the world (that the Iron Heel eventually falls), which creates dramatic irony.
-- But create different systemmessage (vs. default):
-  - Role: "Future Historian."
-  - Instruction: "Write the academic foreword to the 'Everhard Manuscript,' analyzing its historical significance from the perspective of the 27th Century."
+##### Execution
+- Scene ID is counted up from book meta "total_scenes": 0"
+- Meta "word_count" & "total_scenes" is updated by script after processing
+- Insert special content as references / separate scenes manually
+[scene_creator.py](./scripts/scene_creator.py)
+[scene_splitting_prompt](./prompts/scene_splitting.md)
 
 
 ### Stage 6: Create recursive LLM summaries
@@ -223,4 +200,34 @@ Perplexity alone won't capture creative quality - you'll need manual review
 - Public Domain: https://www.gutenberg.org/ebooks/1164
 - Used version: EPUB (no images, older E-readers)
 
+
+
+
 ## Appendix
+
+##### Logic to parse scenes
+**1. LLM splits into semantic scenes atomic unit**
+  - read in book -> split up into chapters -> loop through & process each chapter
+  - preprocess each chapter by splitting it by \n\n into paragraphs and number each one
+  - add amount tokens of each paragraph to obj with tiktokenizer
+  - chapter text block format for llm in plain text with inline paragraph metadata:
+[P:1|Tok:23] The morning sun cast long shadows across the courtyard as the
+workers began to gather.
+[P:2|Tok:4] I moved to stand beside him...
+  - Send to LLM with world context + instruction: "group into scenes of 650-1500 tokens"
+  - ADD LINK TO PROMPT [...]
+  - llm response must be strictly in this json format with json enforcement enabled:
+{
+  "scenes": [
+    {
+      "final_token_sum": "P1(4) + P2(95) + P3(139) + P4(450) + P5(196) = 884",
+      "end_paragraph": 5
+    },
+  ]
+}
+- token_math_log:
+  - internal "final_token_sum" for llm token calculation
+
+**2. Python script merges LLM semantic scenes deterministically**
+- LLM output typically comes with entropy around token range, but good semantic breakpoints!
+- Merge them together into ~2000-3000 token range scenes as final script output
