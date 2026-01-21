@@ -46,6 +46,8 @@ from typing import List, Tuple, Dict
 
 # llm model = openrouter id
 LLM = "qwen/qwen-2.5-72b-instruct"
+# "google/gemini-2.5-pro"
+# "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
 SYSTEM_MESSAGE = "./prompts/scene_splitting.md"
 
