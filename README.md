@@ -1,6 +1,11 @@
 # LoRA Novel Craft
 
-Finetune SOTA small-midsize Open Source LLMs with LoRA / QLoRA to become skilled Novel Authors of certain flavors.
+- Finetune SOTA small-midsize Open Source LLMs with LoRA / QLoRA to become skilled Novel Authors of certain flavors.
+- Finetuned Models should be able to create 100 pages cohesive novels
+- Tech Stack: Python, Pytorch, Hugging Face Transformers, ...
+- Core modules will be data-prep, train (= lora finetune), inference
+- Narrative is split up into "Semantic Scenes" chunks
+- World Context & Rolling Summaries are used to ensure narrative cohesion (Recursive Reprompting)
 
 ---
 
@@ -126,9 +131,16 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 [scene_splitting_prompt](./prompts/scene_splitting.md)
 
 
-### Stage 6: Create recursive LLM summaries
-- Recursive / Rolling Memory (narrative summary up to exactly current scene) per Scene
-- Add them to the Jsons
+### Stage 6: Create Rolling Summaries for Semantic Scenes
+- This approach, validated by research into "Infinite Context" agents, effectively compresses the "Long Term Memory" into a semantic vector (the summary text) that fits within the prompt
+- Process:
+  - Create Root Summary for scene 1
+  - Take world context + Rolling summary current scene (n) + scene text current scene (n)
+  - Add prompt & query llm to update the current rolling summary with this content best possible (within the token constraints) to produce the Rolling summary for the next scene (n + 1)
+  - Output is saved at each scene object
+
+
+
 
 ### Stage 7: Define special tokens & prompts
 - Add new TBD special tokens; use existing ones <think> / </think>
@@ -200,34 +212,3 @@ Perplexity alone won't capture creative quality - you'll need manual review
 - Public Domain: https://www.gutenberg.org/ebooks/1164
 - Used version: EPUB (no images, older E-readers)
 
-
-
-
-## Appendix
-
-##### Logic to parse scenes
-**1. LLM splits into semantic scenes atomic unit**
-  - read in book -> split up into chapters -> loop through & process each chapter
-  - preprocess each chapter by splitting it by \n\n into paragraphs and number each one
-  - add amount tokens of each paragraph to obj with tiktokenizer
-  - chapter text block format for llm in plain text with inline paragraph metadata:
-[P:1|Tok:23] The morning sun cast long shadows across the courtyard as the
-workers began to gather.
-[P:2|Tok:4] I moved to stand beside him...
-  - Send to LLM with world context + instruction: "group into scenes of 650-1500 tokens"
-  - ADD LINK TO PROMPT [...]
-  - llm response must be strictly in this json format with json enforcement enabled:
-{
-  "scenes": [
-    {
-      "final_token_sum": "P1(4) + P2(95) + P3(139) + P4(450) + P5(196) = 884",
-      "end_paragraph": 5
-    },
-  ]
-}
-- token_math_log:
-  - internal "final_token_sum" for llm token calculation
-
-**2. Python script merges LLM semantic scenes deterministically**
-- LLM output typically comes with entropy around token range, but good semantic breakpoints!
-- Merge them together into ~2000-3000 token range scenes as final script output

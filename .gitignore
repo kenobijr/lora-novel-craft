@@ -24,18 +24,24 @@ CLAUDE.md
 #project docs
 mvp.md
 
-# input books: show "Jack London - The Iron Heel" E2E for data prep pipeline)
+# data: book processing pipeline: epub -> jsonl
+# novel "Jack London - The Iron Heel" as E2E for data prep pipeline
 # epub
 data/epub/*
 !data/epub/Jack_London-The_Iron_Heel.epub
-# md raw
+# md_raw
+# raw .md books after mapping from epub -> .md with pandoc
 data/md_raw/*
-!data/md_raw/Jack_London-The_Iron_Heel.md
-# md_clean
-data/md_clean/*
-!data/md_clean/Jack_London-The_Iron_Heel.md
-!data/md_clean/Jack_London-The_Iron_Heel-foreword.md
-!data/md_clean/Jack_London-The_Iron_Heel-world_context.md
+!data/md_raw/text/Jack_London-The_Iron_Heel.md
+# cleaned novel content & metadata saved as .md
+# sub dirs: text -> novel content / wc -> world context / ref -> diverse reference material
+data/md/text/*
+!data/md/text/Jack_London-The_Iron_Heel.md
+data/md/ref/*
+!data/md/ref/Jack_London-The_Iron_Heel-foreword.md
+data/md/wc/*
+!data/md/wc/Jack_London-The_Iron_Heel-world_context.md
+
 # json base
 data/json_base/*
 !data/json_base/Jack_London-The_Iron_Heel.json

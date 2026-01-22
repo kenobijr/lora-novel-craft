@@ -161,7 +161,7 @@ class SceneSplitterLLM:
         result = json.loads(response.choices[0].message.content)
 
         # # DEBUGGING without live llm calls // replace llm response by test file in same format
-        # with open("./data/json/test_scene_partition_old.json", mode="r", encoding="utf-8") as f:
+        # with open("./data/debug/json/test_scene_partition_old.json", mode="r", encoding="utf-8") as f:
         #     result = json.load(f)
 
         # base validation
