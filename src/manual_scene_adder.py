@@ -10,7 +10,7 @@ arguments:
 
 import sys
 import json
-from src.config import SceneConfig, get_tokenizer
+from src.config import get_tokenizer, SceneConfig, Book, Scene
 
 # load tokenizer
 tokenizer = get_tokenizer()
@@ -22,9 +22,9 @@ cfg = SceneConfig()
 
 def add_scene(book_json_path, scene_md_path, scene_id):
     print("started process...")
-    # load book_json
+    # load book_json into dicts & unpack into pydantic obj
     with open(book_json_path, mode="r", encoding="utf-8") as f:
-        book_content = json.load(f)
+        book_content = Book(**json.load(f))
     # load scene content
     with open(scene_md_path, mode="r", encoding="utf-8") as f:
         scene_text = f.read()
@@ -35,22 +35,24 @@ def add_scene(book_json_path, scene_md_path, scene_id):
     # map & check scene_id
     scene_id = int(scene_id)
     assert scene_id > 0, "Valid scene_id > 0 needed for scene adding..."
-    # build scene obj
-    new_scene = {}
-    new_scene["scene_id"] = scene_id
-    # special content: chapter idx 0; title "Reference"; instruction "special" vs. null
-    new_scene["chapter_index"] = 0
-    new_scene["chapter_title"] = "Reference"
-    new_scene["instruction"] = "special"
-    new_scene["text"] = scene_text
-    new_scene["recursive_summary"] = None
-    print(f"Len scenes before adding: {len(book_content["scenes"])}")
+    # build pydantic scene obj; omit setting "running_summary", which gets default None then
+    new_scene = Scene(
+        scene_id=scene_id,
+        # reference content: chapter idx always 0, since prepended before narrative content
+        chapter_index=0,
+        # reference content: title always "Reference"
+        chapter_title="Reference",
+        # reference content: instruction at this step set "special", to differentiate from None
+        instruction="special",
+        text=scene_text,
+    )
+    print(f"Len scenes before adding: {len(book_content.scenes)}")
     # prepend scene to book json scenes list at 1st pos
-    book_content["scenes"].insert(0, new_scene)
-    print(f"Len scenes after adding: {len(book_content["scenes"])}")
+    book_content.scenes.insert(0, new_scene)
+    print(f"Len scenes after adding: {len(book_content.scenes)}")
     # write to target json
     with open(book_json_path, mode="w", encoding="utf-8") as f:
-        json.dump(book_content, f, indent=2, ensure_ascii=False)
+        json.dump(book_content.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
     print(f"Operation completed successfully. File updated: {book_json_path}")
 
 
