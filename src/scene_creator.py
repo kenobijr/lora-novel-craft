@@ -408,7 +408,7 @@ class BookProcessor:
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python book_to_scenes.py <input_book.md> <output_book.json")
+        print("Usage: python scene_creator.py <input_book.md> <output_book.json")
     else:
         bp = BookProcessor(sys.argv[1], sys.argv[2])
         bp.run()
