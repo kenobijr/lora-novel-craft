@@ -9,39 +9,16 @@ Files needed via CLI:
 - must contain cleaned book text for n chapters
 - chapters must be separated by "# Chapter 1" or "# Chapter 2: Some title" as context anchors
 2. output_book.json
-- must be in following format and contain "world context" content about book (is send to llm)
-{
-  "meta": {
-    "book_id": "iron_london",
-    "title": "The Iron Heel",
-    "author": "Jack London",
-    "word_count": 86743,
-    "total_chapters": 25,
-    "total_scenes": 0,
-    "world_context": "....."
-  },
-  "scenes": []
-}
-- "word_count" and counter "total_scenes" are updated in process
-- semantic scenes are appended to "scenes" list in following format:
-{
-    "scene_id": 2,
-    "chapter_index": 1,
-    "chapter_title": "My Eagle",
-    "instruction": null,
-    "text": "# Chapter 1: "My Eagle\n\nThe .....",
-    "recursive_summary": null
-}
+- must be in specefied format and contain "world context" content about book (is send to llm)
 """
 import sys
 import os
 import re
 import json
-from src.config import SceneConfig, get_tokenizer
+from src.config import get_tokenizer, SceneConfig, Book, Scene, ScenePartitioning
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
-from pydantic import BaseModel
 from typing import List, Tuple, Dict
 
 # llm model = openrouter id
@@ -56,22 +33,11 @@ load_dotenv()
 api_key = os.getenv("OPEN_ROUTER_KEY")
 if not api_key:
     raise ValueError("could not load API key...")
+
 # load tokenizer
 tokenizer = get_tokenizer()
 if not tokenizer:
     raise ValueError("could not load tokenizer...")
-
-
-# pydantic classes for llm response format enforcement
-class SceneBoundary(BaseModel):
-    """ single scene boundary marker """
-    final_token_sum: str
-    end_paragraph: int
-
-
-class ScenePartitionResponse(BaseModel):
-    """ llm response schema for scene partitioning """
-    scenes: List[SceneBoundary]
 
 
 class SceneSplitterLLM:
@@ -142,7 +108,7 @@ class SceneSplitterLLM:
                 "json_schema": {
                     "name": "scene_partition",
                     "strict": True,
-                    "schema": ScenePartitionResponse.model_json_schema()
+                    "schema": ScenePartitioning.model_json_schema()
                 }
             },
             # fits only on qwen3!!!
@@ -208,13 +174,14 @@ class BookProcessor:
         # file path target json file
         self.book_json_path = output_book_json
         # parse & save content from book json file: structured book meta data
+        # 1. unpack dict from json.load into kw arguments -> 2. create pydantic book obj (=validate)
         with open(output_book_json, mode="r", encoding="utf-8") as f:
-            self.book_json = json.load(f)
+            self.book_json = Book(**json.load(f))
         # save original wc from book json sep for stats
-        self.orig_wc = self.book_json["meta"]["word_count"]
+        self.orig_wc = self.book_json.meta.word_count
         # init llm -> pass world context strfrom book json, book json path & config
         self.llm = SceneSplitterLLM(
-            self.book_json["meta"]["world_context"],
+            self.book_json.meta.world_context,
             output_book_json,
             self.cfg
         )
@@ -326,43 +293,32 @@ class BookProcessor:
         """
         - loop through chapter tuples & create consecutive scenes with text & chapter meta data
         - use total scenes from book json metadata to create scene ids and update it
-        create scene objects for each scene in following format:
-        {
-        "scene_id": 1,
-        "chapter_index": 1,
-        "chapter_title": null,
-        "instruction": null,
-        "text": "some text content....",
-        "recursive_summary": null,
-        "thought_plan": null
-        }
+        - create scene objects for each scene in pydantic specified format
         - save scene objects to self.book_json every iteration
         - write to target file one time after loop
         """
         for chapter_tpl in scenes:
             # get global book scene counter
-            global_scene_counter = self.book_json["meta"]["total_scenes"]
+            global_scene_counter = self.book_json.meta.total_scenes
             for scene_number, scene_content in enumerate(chapter_tpl[2], start=1):
-                scene_obj = {}
-                # scene_id equals sequence num within chapter + running counter of prev book scenes
-                scene_obj["scene_id"] = global_scene_counter + scene_number
-                # add chapter idx & title if available
-                scene_obj["chapter_index"] = chapter_tpl[0]
-                scene_obj["chapter_title"] = chapter_tpl[1] if chapter_tpl[1] else None
-                scene_obj["instruction"] = None
-                # add semantic scene text
-                scene_obj["text"] = scene_content
-                scene_obj["running_summary"] = None
-                # add scene obj to book & write to json
-                self.book_json["scenes"].append(scene_obj)
+                # scene attributes instruction & running_summary via defaults for now
+                new_scene = Scene(
+                    # scene_id equals global scene counter + scene number
+                    scene_id=global_scene_counter + scene_number,
+                    chapter_index=chapter_tpl[0],
+                    # pass chapter_title if available at scene (book) as txt, otherwise None
+                    chapter_title=chapter_tpl[1],
+                    text=scene_content
+                )
+                self.book_json.scenes.append(new_scene)
             # update global scene counter with all scenes of a chapter
-            self.book_json["meta"]["total_scenes"] += len(chapter_tpl[2])
+            self.book_json.meta.total_scenes += len(chapter_tpl[2])
         # update global word counter
-        full_text = " ".join([scene["text"] for scene in self.book_json["scenes"]])
-        self.book_json["meta"]["word_count"] = len(full_text.split())
-        # write to json
+        full_text = " ".join([scene.text for scene in self.book_json.scenes])
+        self.book_json.meta.word_count = len(full_text.split())
+        # use pydantic json model dump method to write obj into json
         with open(self.book_json_path, mode="w", encoding="utf-8") as f:
-            json.dump(self.book_json, f, indent=2, ensure_ascii=False)
+            json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
 
     def _split_to_p_blocks(self) -> List[List[str]]:
         """
@@ -416,7 +372,7 @@ class BookProcessor:
         # remove empty string at first pos from split before # Chapter 1
         chapters = [i for i in chapters if i.strip()]
         # check against meta chapter numbers
-        assert self.book_json["meta"]["total_chapters"] == len(chapters), "check chapter processing"
+        assert self.book_json.meta.total_chapters == len(chapters), "check chapter processing"
         return chapters
 
     def run(self):
@@ -440,11 +396,11 @@ class BookProcessor:
         print("---------------------------------------------")
         print("Start processing scene objs and save to target JSON file ...")
         self._save_scenes(scenes)
-        print(f"Did create {len(self.book_json['scenes'])} semantic scenes in total.")
+        print(f"Did create {len(self.book_json.scenes)} semantic scenes in total.")
         print("---------------------------------------------")
         # print book wc from meta before op vs. wc of all scenes
         print(f"Original Word Count from book meta (before operation): {self.orig_wc}")
-        print(f"Word Count all scenes combined (after): {self.book_json["meta"]["word_count"]}")
+        print(f"Word Count all scenes combined (after): {self.book_json.meta.word_count}")
         print("---------------------------------------------")
         print(f"Book JSON file written to: {self.book_json_path}")
         print("-------Operation completed successfully.-------")
