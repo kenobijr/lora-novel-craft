@@ -11,12 +11,11 @@ arguments:
 import sys
 import json
 from transformers import AutoTokenizer
+from src.config import SceneConfig
 
-# maximum token amount semantic scene
-MAX_SCENE_SIZE = 3000
-
-# load qwen 3 tokenizer from transformers
+# init tokenizer & config
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
+cfg = SceneConfig()
 
 
 def add_scene(book_json_path, scene_md_path, scene_id):
@@ -29,7 +28,7 @@ def add_scene(book_json_path, scene_md_path, scene_id):
         scene_text = f.read()
     # calc & check text against max token size
     tok_amount = len(tokenizer.encode(scene_text))
-    assert tok_amount <= MAX_SCENE_SIZE, "Scene text token amount too big..."
+    assert tok_amount <= cfg.max_scene_size, "Scene text token amount too big..."
     print(f"Read in Reference scene content in valid token amount range: {tok_amount} tokens")
     # map & check scene_id
     scene_id = int(scene_id)
@@ -37,7 +36,7 @@ def add_scene(book_json_path, scene_md_path, scene_id):
     # build scene obj
     new_scene = {}
     new_scene["scene_id"] = scene_id
-    # special content: chapter idx 0; title "Reference"; instrucion "special" vs. null
+    # special content: chapter idx 0; title "Reference"; instruction "special" vs. null
     new_scene["chapter_index"] = 0
     new_scene["chapter_title"] = "Reference"
     new_scene["instruction"] = "special"
