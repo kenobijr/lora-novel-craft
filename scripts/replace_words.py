@@ -1,5 +1,5 @@
 """
-Script to replace all word occurrences defined in a dict within .md file
+Helper script to replace all word occurrences defined in a dict within .md file
 - input .md file is replaced by the edited output file
 - adapt replacement dict
 """
