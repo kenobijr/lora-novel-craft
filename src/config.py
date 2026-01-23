@@ -7,12 +7,19 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
-# scene config params
 class SceneConfig(BaseModel):
+    """ scene creation config params """
     max_scene_size: int = 3000
     min_paragraph_size: int = 75
     debug_mode: bool = True
     debug_dir: str = "./data/debug/"
+
+class SummaryConfig(BaseModel):
+    """ running summary creation config params """
+    max_summary_size: int = 400
+    root_summary_narrative: str = "NARRATIVE INITIALIZATION: The story begins."
+    root_summary_reference: str = "DOCUMENT INITIALIZATION: The document / textual record begins."
+
 
 
 # tokenizor singleton qwen
