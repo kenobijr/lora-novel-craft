@@ -208,8 +208,8 @@ def process_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "-o", "--output_dir",
-        default="./data/md_clean/",
-        help="Output Dir (default: ./data/md_clean/)"
+        default="./data/md/",
+        help="Output Dir (default: ./data/md/)"
     )
     parser.add_argument(
         "--force",
