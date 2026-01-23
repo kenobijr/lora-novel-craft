@@ -37,12 +37,11 @@ import sys
 import os
 import re
 import json
-from src.config import SceneConfig
+from src.config import SceneConfig, get_tokenizer
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
-from transformers import AutoTokenizer
 from typing import List, Tuple, Dict
 
 # llm model = openrouter id
@@ -52,12 +51,15 @@ LLM = "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
 SYSTEM_MESSAGE = "./prompts/scene_splitting.md"
 
-
-# api key
+# load api key
 load_dotenv()
 api_key = os.getenv("OPEN_ROUTER_KEY")
 if not api_key:
     raise ValueError("could not load API key...")
+# load tokenizer
+tokenizer = get_tokenizer()
+if not tokenizer:
+    raise ValueError("could not load tokenizer...")
 
 
 # pydantic classes for llm response format enforcement
@@ -86,8 +88,6 @@ class SceneSplitterLLM:
             self.sm = f.read()
         # save cleaned book title for debugging
         self.title = os.path.basename(book_json).removesuffix(".json")
-        # load qwen 3 tokenizer from transformers
-        self.tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
         # init llm
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
@@ -146,16 +146,16 @@ class SceneSplitterLLM:
                 }
             },
             # fits only on qwen3!!!
-            extra_body={                                                       
-                "provider": {                                               
-                    "only": ["DeepInfra"]                                            
-                }                                                                
+            extra_body={                                                   
+                "provider": {                                         
+                    "only": ["DeepInfra"]                                          
+                }                                                             
             }
         )
         result = json.loads(response.choices[0].message.content)
 
         # # DEBUGGING without live llm calls // replace llm response by test file in same format
-        # with open("./data/debug/json/test_scene_partition_old.json", mode="r", encoding="utf-8") as f:
+        # with open("./data/debug/json/test_scene_partition.json", mode="r", encoding="utf-8") as f:
         #     result = json.load(f)
 
         # base validation
@@ -212,8 +212,12 @@ class BookProcessor:
             self.book_json = json.load(f)
         # save original wc from book json sep for stats
         self.orig_wc = self.book_json["meta"]["word_count"]
-        # init llm -> pass world context str extracted from book json
-        self.llm = SceneSplitterLLM(self.book_json["meta"]["world_context"], output_book_json, self.cfg)
+        # init llm -> pass world context strfrom book json, book json path & config
+        self.llm = SceneSplitterLLM(
+            self.book_json["meta"]["world_context"],
+            output_book_json,
+            self.cfg
+        )
         # raw text splitted into chapters during processing
         self.chapters = None
         # list of final semantic scene objects as saved to target json
@@ -222,7 +226,7 @@ class BookProcessor:
     @staticmethod
     def _extract_chapter_metadata(chapter: List[str]) -> Tuple[int, str]:
         """
-        - extract chapter idx & title (if available) from chapter in form chapter_paragraphs 
+        - extract chapter idx & title (if available) from chapter in form chapter_paragraphs
         - format always like # Chapter 1; with title: # Chapter 1: Title
         """
         match = re.match(r'^#\s*Chapter\s+(\d+)(?::\s*(.+))?', chapter[0])
@@ -240,7 +244,7 @@ class BookProcessor:
         """
         lines = []
         for i, p in enumerate(chapter, start=1):
-            tok_p = len(self.llm.tokenizer.encode(p))
+            tok_p = len(tokenizer.encode(p))
             lines.append(f"[P:{i}|Tok:{tok_p}] {p}")
         return "\n".join(lines)
 
@@ -280,7 +284,7 @@ class BookProcessor:
             # stats for scene size / amount of llm cut atomic scenes
             print(f"Received response by LLM with amount of Atomic Scenes: {len(atomic_scenes)}")
             avg_atomic_scene = sum(
-                len(self.llm.tokenizer.encode(scene)) for scene in atomic_scenes
+                len(tokenizer.encode(scene)) for scene in atomic_scenes
             ) / len(atomic_scenes)
             print(f"Token avg per Atomic Scene before processing: {avg_atomic_scene:,.2f}")
             # merge atomic scenes into bigger target semantic scenes up to specified max size
@@ -288,7 +292,7 @@ class BookProcessor:
             token_counter = 0
             running_scene = ""
             for scene in atomic_scenes:
-                tok_current = len(self.llm.tokenizer.encode(scene))
+                tok_current = len(tokenizer.encode(scene))
                 # if running scene, together with current scene, under threshold -> add up
                 if token_counter + tok_current <= self.cfg.max_scene_size:
                     running_scene += ("\n\n" + scene) if running_scene else scene
@@ -309,7 +313,7 @@ class BookProcessor:
             # stats for final processed semantic scenes
             print(f"Amount Semantic scenes after processing: {len(semantic_scenes)}")
             avg_semantic_scene = sum(
-                len(self.llm.tokenizer.encode(scene)) for scene in semantic_scenes
+                len(tokenizer.encode(scene)) for scene in semantic_scenes
             ) / len(semantic_scenes)
             print(f"Token avg per Semantic Scene after processing: {avg_semantic_scene:,.2f}")
             print("---------------------------------------------")
@@ -348,7 +352,7 @@ class BookProcessor:
                 scene_obj["instruction"] = None
                 # add semantic scene text
                 scene_obj["text"] = scene_content
-                scene_obj["recursive_summary"] = None
+                scene_obj["running_summary"] = None
                 # add scene obj to book & write to json
                 self.book_json["scenes"].append(scene_obj)
             # update global scene counter with all scenes of a chapter
@@ -375,7 +379,7 @@ class BookProcessor:
             bucket_counter = 0
             for p in raw_paragraphs:
                 # calc size once
-                p_tok = len(self.llm.tokenizer.encode(p))
+                p_tok = len(tokenizer.encode(p))
                 # case 1: bucket is empty
                 if not bucket:
                     # if atomic paragraph is greater than min size append it to p_blocks else bucket

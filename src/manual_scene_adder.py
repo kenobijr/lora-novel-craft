@@ -10,11 +10,13 @@ arguments:
 
 import sys
 import json
-from transformers import AutoTokenizer
-from src.config import SceneConfig
+from src.config import SceneConfig, get_tokenizer
 
-# init tokenizer & config
-tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
+# load tokenizer
+tokenizer = get_tokenizer()
+if not tokenizer:
+    raise ValueError("could not load tokenizer...")
+# load cfg
 cfg = SceneConfig()
 
 
