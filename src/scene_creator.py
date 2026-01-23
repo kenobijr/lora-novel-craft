@@ -37,6 +37,7 @@ import sys
 import os
 import re
 import json
+from src.config import SceneConfig
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -51,14 +52,6 @@ LLM = "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
 SYSTEM_MESSAGE = "./prompts/scene_splitting.md"
 
-# maximum token amount semantic scene
-MAX_SCENE_SIZE = 3000
-# minimum token amount paragraph block to deliver to llm to cut scenes
-MIN_P_SIZE = 75
-
-# llm debugging
-DEBUG_MODE = True
-DEBUG_DIR = "./data/debug/"
 
 # api key
 load_dotenv()
@@ -85,7 +78,8 @@ class SceneSplitterLLM:
     - world_context directly delivered as str; book metadata needed for llm call
     - manages & formats prompts / systemmessages
     """
-    def __init__(self, world_context: str, book_json: str):
+    def __init__(self, world_context: str, book_json: str, config: SceneConfig):
+        self.cfg = config
         self.wc = world_context
         # init system_message
         with open(SYSTEM_MESSAGE, mode="r", encoding="utf-8") as f:
@@ -118,13 +112,13 @@ class SceneSplitterLLM:
 
     def _debug_llm_call(self, prompt: str, response: str) -> None:
         """
-        - switch on / off with global
+        - switch on / off with config
         - if activated, on every llm call prompt & response are saved into debug folder
         """
-        os.makedirs(DEBUG_DIR, exist_ok=True)
+        os.makedirs(self.cfg.debug_dir, exist_ok=True)
         ts = datetime.now().strftime("%H%M%S_%f")
-        prompt_path = os.path.join(DEBUG_DIR, f"debug_prompt.{self.title}.{ts}.md")
-        response_path = os.path.join(DEBUG_DIR, f"debug_llm.{self.title}.{ts}.json")
+        prompt_path = os.path.join(self.cfg.debug_dir, f"debug_prompt.{self.title}.{ts}.md")
+        response_path = os.path.join(self.cfg.debug_dir, f"debug_llm.{self.title}.{ts}.json")
         with open(prompt_path, mode="w", encoding="utf-8") as f:
             f.write(prompt)
         with open(response_path, mode="w", encoding="utf-8") as f:
@@ -169,7 +163,7 @@ class SceneSplitterLLM:
             raise ValueError(f"No api result for prompt: {full_prompt}")
 
         # if debug mode activated prompt & llm response will be saved
-        if DEBUG_MODE:
+        if self.cfg.debug_mode:
             self._debug_llm_call(full_prompt, result)
 
         # further validations
@@ -202,11 +196,12 @@ class SceneSplitterLLM:
 class BookProcessor:
     """
     - steering the whole book to scene splitting process
-    - process all arguments
     - pass world_context further & init scene splitting llm class with it
     - save scene objects to self.book_json during processing
     """
-    def __init__(self, input_book_md: str, output_book_json: str):
+    def __init__(self, input_book_md: str, output_book_json: str, config=None):
+        # get globals / config parameters from data_prep config dataclass
+        self.cfg = config if config is not None else SceneConfig()
         # parse & save content from book md file: narrative as one formatted str
         with open(input_book_md, mode="r", encoding="utf-8") as f:
             self.raw_text = f.read()
@@ -218,7 +213,7 @@ class BookProcessor:
         # save original wc from book json sep for stats
         self.orig_wc = self.book_json["meta"]["word_count"]
         # init llm -> pass world context str extracted from book json
-        self.llm = SceneSplitterLLM(self.book_json["meta"]["world_context"], output_book_json)
+        self.llm = SceneSplitterLLM(self.book_json["meta"]["world_context"], output_book_json, self.cfg)
         # raw text splitted into chapters during processing
         self.chapters = None
         # list of final semantic scene objects as saved to target json
@@ -295,7 +290,7 @@ class BookProcessor:
             for scene in atomic_scenes:
                 tok_current = len(self.llm.tokenizer.encode(scene))
                 # if running scene, together with current scene, under threshold -> add up
-                if token_counter + tok_current <= MAX_SCENE_SIZE:
+                if token_counter + tok_current <= self.cfg.max_scene_size:
                     running_scene += ("\n\n" + scene) if running_scene else scene
                     token_counter += tok_current
                 # otherwise finalise & reset running scene & counter; add current scene after it
@@ -384,7 +379,7 @@ class BookProcessor:
                 # case 1: bucket is empty
                 if not bucket:
                     # if atomic paragraph is greater than min size append it to p_blocks else bucket
-                    if p_tok >= MIN_P_SIZE:
+                    if p_tok >= self.cfg.min_paragraph_size:
                         chapter_blocks.append(p)
                     else:
                         # in this case bucket is always empty, so add without \n\n added to p
@@ -393,7 +388,7 @@ class BookProcessor:
                 # case 2: content in bucket
                 else:
                     # if p & bucket content are greater than threshold, empty bucket; else add to it
-                    if (bucket_counter + p_tok) >= MIN_P_SIZE:
+                    if (bucket_counter + p_tok) >= self.cfg.min_paragraph_size:
                         chapter_blocks.append(f"{bucket}\n\n{p}")
                         bucket = ""
                         bucket_counter = 0
