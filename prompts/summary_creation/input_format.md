@@ -1,0 +1,6 @@
+- World context describing the book's setting, tone, and characters
+- Current rolling summary containing:
+  - NOVEL PROGRESS: [XX%] — position in overall narrative
+  - LOCAL MOMENTUM: immediate state from previous scene
+  - GLOBAL STATE: cumulative story facts
+- Raw text of the new scene to integrate
