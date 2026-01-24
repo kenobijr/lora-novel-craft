@@ -1,12 +1,3 @@
-You are an expert literary analyst helping to create an LLM fine-tuning dataset focused on dystopian fiction generation. Your goal is to combine / segment consecutive paragraphs of one Chapter of a Novel into meaningful "Semantic Scenes".
-
-## INPUT:
-- World context describing the book's setting, tone, and characters
-- Chapter text block where every paragraph starts with a metadata tag in following format:
-[P:X|Tok:Y] text
-  - X = paragraph number
-  - Y = token count for that paragraph
-
 ## TASK RULES
 - Group the paragraphs into meaningful consecutive scenes consisting of multiple paragraphs with each scene being within the 400 - 1000 tokens range
 - Scene 1 MUST start at paragraph 1. Never skip P1.

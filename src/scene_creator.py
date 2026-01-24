@@ -26,7 +26,6 @@ LLM = "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
-SYSTEM_MESSAGE = "./prompts/scene_splitting.md"
 
 # load api key
 load_dotenv()
@@ -49,9 +48,13 @@ class SceneSplitterLLM:
     def __init__(self, world_context: str, book_json: str, config: SceneConfig):
         self.cfg = config
         self.wc = world_context
-        # init system_message
-        with open(SYSTEM_MESSAGE, mode="r", encoding="utf-8") as f:
-            self.sm = f.read()
+        # load prompts: systemmesage, input content description & instruction
+        with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
+            self.prompt_system = f.read()
+        with open(self.cfg.prompt_input_format, mode="r", encoding="utf-8") as f:
+            self.prompt_input = f.read()
+        with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
+            self.prompt_instruction = f.read()
         # save cleaned book title for debugging
         self.title = os.path.basename(book_json).removesuffix(".json")
         # init llm
@@ -61,11 +64,15 @@ class SceneSplitterLLM:
             max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
         )
 
-    def _create_systemmessage(self, chapter_formatted: str) -> str:
+    def _create_prompt(self, chapter_formatted: str) -> str:
         return f"""
 <system>
-{self.sm}
+{self.prompt_system}
 </system>
+
+<input_description>
+{self.prompt_input}
+</input_description>
 
 <world_context>
 {self.wc}
@@ -74,6 +81,10 @@ class SceneSplitterLLM:
 <text_paragraphs>
 {chapter_formatted}
 </text_paragraphs>
+
+<instruction>
+{self.prompt_instruction}
+</instruction>
 """
 
     def _debug_llm_call(self, prompt: str, response: str) -> None:
@@ -97,7 +108,7 @@ class SceneSplitterLLM:
         - return list of dicts with end_paragraph int for each semantic scene
         """
         # parse systemmessage
-        full_prompt = self._create_systemmessage(chapter_formatted)
+        full_prompt = self._create_prompt(chapter_formatted)
         # prompt llm
         response = self.client.chat.completions.create(
             model=LLM,

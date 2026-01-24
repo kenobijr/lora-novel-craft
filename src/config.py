@@ -11,6 +11,9 @@ class SceneConfig(BaseModel):
     """ scene creation config params """
     max_scene_size: int = 3000
     min_paragraph_size: int = 75
+    prompt_system: str = "./prompts/scene_splitting/systemmessage.md"
+    prompt_input_format: str = "./prompts/scene_splitting/input_format.md"
+    prompt_instruction: str = "./prompts/scene_splitting/instruction.md"
     debug_mode: bool = True
     debug_dir: str = "./data/debug/"
 
