@@ -140,8 +140,6 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
   - Output is saved at each scene object
 
 
-
-
 ### Stage 7: Define special tokens & prompts
 - Add new TBD special tokens; use existing ones <think> / </think>
 - Add suitable prompts <user>......</user> / <assistant> , .....
@@ -150,46 +148,40 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 - run a simple "Compiler Script" that flattens the JSONs + related content into efficient JSONL
 - this format is native to HuggingFace datasets library and Industry standard for LLM fine-tuning
 
-## Train -> Dataset Scale (DRAFT)
+## Train -> Dataset Scale (LLM-DRAFT)
 
-For 5-10 books, assuming 50,000 words per book, we have ~500,000 words (~750,000 tokens).
+- For 5-10 books, assuming 50,000 words per book, we have ~500,000 words (~750,000 tokens).
+- Chunk size: 4096 tokens.
+- VRAM Usage	~18-22 GB (Fits on 1x RTX 3090/4090)
+- Total Chunks: ~180 - 200.
+- This is a "Small Data" regime. To prevent overfitting (where the model memorizes the books verbatim), we must use:
+- High LoRA Rank (r=64 or 128): To allow sufficient capacity for stylistic adaptation.
+- Low Epochs (3-5): Monitoring validation loss strictly.
 
-Chunk size: 4096 tokens.
-
-VRAM Usage	~18-22 GB (Fits on 1x RTX 3090/4090)
-
-Total Chunks: ~180 - 200.
-
-This is a "Small Data" regime. To prevent overfitting (where the model memorizes the books verbatim), we must use:
-
-High LoRA Rank (r=64 or 128): To allow sufficient capacity for stylistic adaptation.
-
-Low Epochs (3-5): Monitoring validation loss strictly.
-
-## Train -> Model Tuning / LoRA setup / Train strategy
+## Train -> Model Tuning / LoRA setup / Train strategy (LLM-DRAFT)
 Model Architecture (Confirmed from HuggingFace)
 
-  Qwen3-30B-A3B-Thinking-2507:
-  - Total params: 30.5B
-  - Active params: 3.3B (MoE: 128 experts, 8 active per token)
-  - Context: 256K native, extendable to 1M tokens
-  - Special feature: Thinking mode (outputs <think> reasoning)
+Qwen3-30B-A3B-Thinking-2507:
+- Total params: 30.5B
+- Active params: 3.3B (MoE: 128 experts, 8 active per token)
+- Context: 256K native, extendable to 1M tokens
+- Special feature: Thinking mode (outputs <think> reasoning)
 
-  ---
-  QLoRA Compatibility Analysis
+---
+QLoRA Compatibility Analysis
 
-  1. Unsloth Support:
-    - Officially supports Qwen3-30B-A3B QLoRA fine-tuning
-    - Claims 17.5GB VRAM (optimized) to ~40GB (realistic for full sequences)
-    - 2x faster training, 70% less VRAM vs. standard PEFT
-    - Router layer disabled by default (correct approach for MoE)
-  2. MS-SWIFT Support:
-    - Full support for LoRA/QLoRA/DoRA on Qwen3-MoE
-    - Production-ready framework
-  3. MoE + Quantization:
-    - AWS successfully fine-tuned Mixtral 8x7B MoE with QLoRA
-    - MoEs work especially well with quantization - experts less affected by lower precision
-    - bitsandbytes + PEFT fully supports MoE architectures
+1. Unsloth Support:
+  - Officially supports Qwen3-30B-A3B QLoRA fine-tuning
+  - Claims 17.5GB VRAM (optimized) to ~40GB (realistic for full sequences)
+  - 2x faster training, 70% less VRAM vs. standard PEFT
+  - Router layer disabled by default (correct approach for MoE)
+2. MS-SWIFT Support:
+  - Full support for LoRA/QLoRA/DoRA on Qwen3-MoE
+  - Production-ready framework
+3. MoE + Quantization:
+  - AWS successfully fine-tuned Mixtral 8x7B MoE with QLoRA
+  - MoEs work especially well with quantization - experts less affected by lower precision
+  - bitsandbytes + PEFT fully supports MoE architectures
 
 ## Machine
   - RunPod: ~$0.30-0.50/hr for RTX 4090 (24GB VRAM) - sufficient for Mistral Nemo 12B QLoRA
@@ -197,11 +189,26 @@ Model Architecture (Confirmed from HuggingFace)
   - Lambda Labs: ~$1.10/hr for A100 40GB - overkill but very stable
   - Recommendation: RunPod or Vast.ai with RTX 4090 (24GB) for cost efficiency
 
+
+## Inference / Novel creation pipeline
+1. Planning / Global / Hierarchical Outline
+- Models first generate a multi-level outline (e.g., acts > chapters > scenes), then fill iteratively. This mimics human writing, improving global coherence 
+- generate a list of 20-50 semantic scene "stubs" or one-sentence goals
+- Include "Reasoning about Turning Points": Let llm not only "outline some story", but "include certain turning points": setback, climax, ...
+2. create / define metadata to create world context / root rolling summary / root novel / base story / amount semantic scenes / chapters
+3. python script loops the model through creating defined (or range defined) amount of scenes / chapters, each with
+  - systemmessage to model, all this aforementioned metadata, and then instruction like "write semantic scene / chapter 1 / 10"
+  - after each new gen semantic scene, the rolling summary is updated with the additional scene
+  - so in next loop call for next semantic scene, the model with have the updated summary
+
+
 ## Evaluation
 Perplexity alone won't capture creative quality - you'll need manual review
 
 
-
+## Sources
+- Are Large Language Models Capable of Generating Human-Level Narratives? (https://arxiv.org/pdf/2407.13248)
+- Plan-and-Write: Towards Better Automatic Storytelling (https://www.researchgate.net/publication/335380574_Plan-and-Write_Towards_Better_Automatic_Storytelling)
 
 
 ## After MVP
