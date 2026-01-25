@@ -142,6 +142,8 @@ class SummaryProcessor:
     def __init__(self, book_json_path: str, config=None):
         # enable init with argument for testing; normal case create SceneConfig obj from config.py
         self.cfg = config if config is not None else SummaryConfig()
+        # save path of book
+        self.book_json_path = book_json_path
         # load book json & map into pydantic obj
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_json = Book(**json.load(f))
@@ -198,11 +200,12 @@ class SummaryProcessor:
                 is_narrative,
             )
             new_running_summary = self._format_running_summary(new_running_summary)
-            # DEBUG
-            # print("\n=== LLM RESPONSE ===")
-            # print(new_running_summary)
             # save new running summary at following scene
             self.book_json.scenes[i+1].running_summary = new_running_summary
+            # use pydantic json model dump method to write obj into json
+            with open(self.book_json_path, mode="w", encoding="utf-8") as f:
+                json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+            print(f"Did save LLM summary to scense id: {self.book_json.scenes[i+1].scene_id}")
 
     def run(self, scene_range: Tuple[int, int] = None):
         """
@@ -222,9 +225,11 @@ class SummaryProcessor:
         if scene_range[0] == 0:
             print("Setting root summary at 1st scene manually ...")
             self._set_root_summary()
-        print("Start processing scenes ...")
+        print(f"Start processing scenes range: start {scene_range[0]} - end {scene_range[1]}...")
         print("---------------------------------------------")
         self._process_scenes(scene_range)
+        print("---------------------------------------------")
+        print("Operation finished")
 
 
 if __name__ == "__main__":
