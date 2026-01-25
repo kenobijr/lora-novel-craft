@@ -6,6 +6,9 @@
 3. **Terminology Consistency**: Use proper nouns and terms exactly as defined in the world context
 4. **Omniscient Voice**: Write as neutral narrator. Never "In this scene..." or "The author shows..." — just state what happened
 
+### KNOWLEDGE RESTRICTION                                       
+You MUST derive ALL information ONLY from the provided content in this prompt. Do NOT use any external knowledge about this book, its characters, or plot events beyond this content. Treat each scene as if you are reading this story for the first time.
+
 ### Field 1-3: LOCAL MOMENTUM RULES
 - Derived ONLY from the new scene text — ignore previous momentum entirely:
 - SCENE_END_STATE: Physical situation at exact closing moment — location, time, positions | 1-2 sentences
