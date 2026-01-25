@@ -11,11 +11,11 @@ from src.config import (
 )
 from dotenv import load_dotenv
 from openai import OpenAI
-from typing import Dict
+from typing import Dict, Tuple
 
 
 # llm model = openrouter id
-LLM = "qwen/qwen-2.5-72b-instruct"
+LLM = "google/gemini-2.0-flash-lite-001"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
@@ -109,19 +109,19 @@ NOVEL_PROGRESS: {novel_progress}%
                     "schema": RunningSummary.model_json_schema()
                 }
             },
-            # fits only on qwen3!!!
-            extra_body={                                         
-                "provider": {                                         
-                    "only": ["DeepInfra"]                                          
-                }                                                             
-            }
+            # only needed for qwen3!!!
+            # extra_body={                                         
+            #     "provider": {                                         
+            #         "only": ["DeepInfra"]                                          
+            #     }                                                             
+            # }
         )
         result = json.loads(response.choices[0].message.content)
         if not result:
             raise ValueError(f"No api result for scene: {scene.scene_id}")
         # DEBUG
-        print(prompt)
-        print(result)
+        # print(prompt)
+        # print(result)
         return result
 
 
@@ -146,7 +146,7 @@ class SummaryProcessor:
         - distinguish between narrative vs. reference root type
         """
         first_scene = self.book_json.scenes[0]
-        # get root narrative or reference summary depending on scene instruciton attribute
+        # get root narrative or reference summary depending on scene instruction attribute
         is_narrative = True if first_scene.instruction != "special" else False
         root = get_root_summary_narrative() if is_narrative else get_root_summary_reference()
         root = self._format_running_summary(root.model_dump())
@@ -163,37 +163,74 @@ class SummaryProcessor:
         total = self.book_json.meta.total_scenes
         return int(((scene_id - 1) / total) * 100)
 
-    def _process_scenes(self):
+    def _process_scenes(self, scene_range: Tuple):
         """
-        - loop through all semantic scenes of book to create running summary for each
+        - loop through specified scenes range to create running summary for each
+        - range uses python semantics: start inclusive, end exclusive
+        - e.g. (0, 3) processes scenes 0, 1, 2 -> scene 3 receives final summary
         - distinguish scene type: narrative vs. reference -> reference instruction value = "special"
         """
-        for scene in self.book_json.scenes:
-            print(f"starting processing scene id: {scene.scene_id}")
+        # python-style range: use directly, no -1 needed
+        for i in range(scene_range[0], scene_range[1]):
+            print(f"Starting processing scene id: {self.book_json.scenes[i].scene_id}")
             # create flag for scene is narrativ type or reference
-            is_narrative = True if scene.instruction != "special" else False
+            is_narrative = True if self.book_json.scenes[i].instruction != "special" else False
             # calc novel progress of scene
-            novel_progress = self._calc_novel_progress(scene.scene_id)
+            novel_progress = self._calc_novel_progress(self.book_json.scenes[i].scene_id)
             print("Query LLM ...")
-            # get updated rolling summary from llm
-            updated_summary = self.llm.get_llm_running_summary(scene, novel_progress, is_narrative)
-            print("\n=== LLM RESPONSE ===")
-            print(self._format_running_summary(updated_summary))
-            break
+            # get updated rolling summary from llm & format it for saving at scene obj
+            new_running_summary = self.llm.get_llm_running_summary(
+                self.book_json.scenes[i],
+                novel_progress,
+                is_narrative,
+            )
+            new_running_summary = self._format_running_summary(new_running_summary)
+            # DEBUG
+            # print("\n=== LLM RESPONSE ===")
+            # print(new_running_summary)
+            # save new running summary at following scene
+            self.book_json.scenes[i+1].running_summary = new_running_summary
 
-    def run(self):
-        """ steer the operation and print stats"""
+    def run(self, scene_range: Tuple[int, int] = None):
+        """
+        - validate scene range tuple if provided, otherwise default to all scenes
+        - if scene processing starts with 1st scene, root summary must be inserted
+        """
+        # set scene range tuple default case to "process all scenes from start to end"
+        len_scenes = self.book_json.meta.total_scenes
+        if scene_range is None:
+            scene_range = (0, len_scenes)
+        # validate scene range tuple
+        assert scene_range[0] >= 0, "start must be >= 0"
+        assert scene_range[1] <= len_scenes, f"end must be <= {len_scenes}"
+        assert scene_range[0] < scene_range[1], "start must be < end"
         print(f"Starting process book: {self.book_json.meta.title} ...")
-        print("Setting root summary at 1st sceen manually ...")
-        self._set_root_summary()
+        # check if roots summary needs to be inserted at 1st scene
+        if scene_range[0] == 0:
+            print("Setting root summary at 1st scene manually ...")
+            self._set_root_summary()
         print("Start processing scenes ...")
         print("---------------------------------------------")
-        self._process_scenes()
+        self._process_scenes(scene_range)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python summary_creator.py <input_book.md>")
+        print("Usage: python summary_creator.py <input_book.json> [start,end]")
+        print("Range uses python semantics: start inclusive, end exclusive")
+        print("Example: python summary_creator.py ./data/book.json 0,3  # processes scenes 0,1,2")
     else:
+        # parse optional scene range from cli: "0,10" -> (0, 10)
+        # python-style: start inclusive, end exclusive
+        scene_range = None
+        if len(sys.argv) == 3:
+            try:
+                parts = sys.argv[2].split(",")
+                scene_range = (int(parts[0]), int(parts[1]))
+            except (ValueError, IndexError):
+                print("Invalid range format. Use: start,end (e.g., 0,10)")
+                sys.exit(1)
+        # use book json file path for object setup, loading, ...
         sp = SummaryProcessor(sys.argv[1])
-        sp.run()
+        # use optional scene range parameter / none to start scene processing
+        sp.run(scene_range)
