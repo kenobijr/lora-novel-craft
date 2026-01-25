@@ -5,6 +5,7 @@ Create "Running Summaries" for each scene of a book json
 import sys
 import json
 import os
+from datetime import datetime
 from src.config import (
     Book, Scene, get_tokenizer, SummaryConfig, RunningSummary,
     get_root_summary_narrative, get_root_summary_reference
@@ -33,10 +34,12 @@ if not tokenizer:
 
 
 class SummaryCreatorLLM:
-    def __init__(self, config: SummaryConfig, world_context: str):
+    def __init__(self, config: SummaryConfig, world_context: str, book_json_path: str):
         self.cfg = config
         # world context from book json needed for each llm call
         self.wc = world_context
+        # save title file for debugging
+        self.book_name = os.path.basename(book_json_path).removesuffix(".json")
         # load prompts
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
             self.prompt_system = f.read()
@@ -51,6 +54,16 @@ class SummaryCreatorLLM:
             api_key=api_key,
             max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
         )
+
+    def _debug_llm_call(self, prompt: str, response: Dict) -> None:
+        os.makedirs(self.cfg.debug_dir, exist_ok=True)
+        ts = datetime.now().strftime("%H%M%S_%f")
+        prompt_path = os.path.join(self.cfg.debug_dir, f"debug_prompt_{self.book_name}_{ts}.md")
+        llm_path = os.path.join(self.cfg.debug_dir, f"debug_llm_{self.book_name}_{ts}.json")
+        with open(prompt_path, mode="w", encoding="utf-8") as f:
+            f.write(prompt)
+        with open(llm_path, mode="w", encoding="utf-8") as f:
+            json.dump(response, f, indent=2, ensure_ascii=False)
 
     def _construct_prompt(self, scene: Scene, novel_progress: int, is_narrative: bool) -> str:
         """Construct prompt with system, world_context, rolling summary, scene text, instruction."""
@@ -119,9 +132,9 @@ NOVEL_PROGRESS: {novel_progress}%
         result = json.loads(response.choices[0].message.content)
         if not result:
             raise ValueError(f"No api result for scene: {scene.scene_id}")
-        # DEBUG
-        # print(prompt)
-        # print(result)
+        # DEBUG: create logfiles if debug mode activated
+        if self.cfg.debug_mode:
+            self._debug_llm_call(prompt, result)
         return result
 
 
@@ -132,7 +145,7 @@ class SummaryProcessor:
         # load book json & map into pydantic obj
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_json = Book(**json.load(f))
-        self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context)
+        self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context, book_json_path)
 
     def _format_running_summary(self, summary_dict: Dict) -> str:
         """ take running summary as python dict rep and map into target str output format"""

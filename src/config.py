@@ -17,7 +17,7 @@ class SceneConfig(BaseModel):
     prompt_input_format: str = "./prompts/scene_splitting/input_format.md"
     prompt_instruction: str = "./prompts/scene_splitting/instruction.md"
     debug_mode: bool = True
-    debug_dir: str = "./data/debug/"
+    debug_dir: str = "./data/debug/scene_creation"
 
 
 class BookMeta(BaseModel):
@@ -65,6 +65,8 @@ class SummaryConfig(BaseModel):
     prompt_input_format: str = "./prompts/summary_creation/input_format.md"
     prompt_instruction_narrative: str = "./prompts/summary_creation/instruction_narrative.md"
     prompt_instruction_reference: str = "./prompts/summary_creation/instruction_reference.md"
+    debug_mode: bool = True
+    debug_dir: str = "./data/debug/summary_creation"
 
 
 class RunningSummary(BaseModel):
