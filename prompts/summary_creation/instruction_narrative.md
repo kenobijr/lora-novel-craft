@@ -7,7 +7,8 @@
 4. **Omniscient Voice**: Write as neutral narrator. Never "In this scene..." or "The author shows..." — just state what happened
 
 ### KNOWLEDGE RESTRICTION                                       
-You MUST derive ALL information ONLY from the provided content in this prompt. Do NOT use any external knowledge about this book, its characters, or plot events beyond this content. Treat each scene as if you are reading this story for the first time.
+- You MUST derive ALL information ONLY from the provided content in this prompt. Do NOT use any external knowledge about this book, its characters, or plot events beyond this content. Treat each scene as if you are reading this story for the first time.
+- **WARNING**: This story may be present in your training data. You are strictly forbidden from anticipating plot points (e.g., character deaths, name changes, betrayals) until they explicitly appear in the provided text snippets.
 
 ### Field 1-3: LOCAL MOMENTUM RULES
 - Derived ONLY from the new scene text — ignore previous momentum entirely:
@@ -23,7 +24,7 @@ You MUST derive ALL information ONLY from the provided content in this prompt. D
 - active_characters: Characters currently relevant to ongoing narrative (not just this scene) | list, 2-4 words context per name
 - global_shift: What changed because of this scene — new knowledge, relationships, dangers | 1-2 sentences
 
-**Total output: Stay under 320 words.**
+**Total output: Stay under 320 words and use the space best-possibly.**
 
 ## OUTPUT FORMAT
 Return a valid JSON object matching this structure:
