@@ -86,7 +86,7 @@ class SummaryCreatorLLM:
 </world_context>
 
 <current_rolling_summary>
-NOVEL_PROGRESS: {novel_progress}%
+NOVEL PROGRESS: {novel_progress}%
 {scene.running_summary}
 </current_rolling_summary>
 
@@ -150,8 +150,15 @@ class SummaryProcessor:
         self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context, book_json_path)
 
     def _format_running_summary(self, summary_dict: Dict) -> str:
-        """ take running summary as python dict rep and map into target str output format"""
-        lines = [f"{key}: {value}" for key, value in summary_dict.items()]
+        """
+        - take running summary as python dict rep and map into target .md styled str format
+        - stay in sync to ## .md format of earlier generated content: scenes, world_context
+        """
+        lines = ["# Running Summary\n"]
+        for key, value in summary_dict.items():
+            # transform snake_case key to markdown header: scene_end_state -> ## SCENE END STATE
+            header = "## " + key.upper().replace("_", " ")
+            lines.append(f"{header}: {value}")
         return "\n".join(lines)
 
     def _set_root_summary(self) -> None:

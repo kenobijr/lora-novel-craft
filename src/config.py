@@ -71,47 +71,34 @@ class SummaryConfig(BaseModel):
 
 class RunningSummary(BaseModel):
     """ llm response schema for running summary creation """
-    SCENE_END_STATE: str  # where/how does this scene physically end
-    EMOTIONAL_BEAT: str  # dominant feeling as scene closes
-    IMMEDIATE_TENSION: str  # unresolved micro-conflict carrying into next scene
-    GLOBAL_EVENTS: str  # cumulative compressed history + new scene merged
-    UNRESOLVED_THREADS: str  # 3-5 active plot threads // semicolon separated
-    WORLD_STATE: str  # current situation/location/stakes // semicolon separated
-    ACTIVE_CHARACTERS: str  # characters in focus with 2-4 word context each
-    GLOBAL_SHIFT: str  # what changed - new knowledge/relationships/dangers
+    scene_end_state: str  # where/how does this scene physically end
+    emotional_beat: str  # dominant feeling as scene closes
+    immediate_tension: str  # unresolved micro-conflict carrying into next scene
+    global_events: str  # cumulative compressed history + new scene merged
+    unresolved_threads: str  # 3-5 active plot threads // semicolon separated
+    world_state: str  # current situation/location/stakes // semicolon separated
+    active_characters: str  # characters in focus with 2-4 word context each
+    global_shift: str  # what changed - new knowledge/relationships/dangers
 
 
-def get_root_summary_narrative() -> str:
-    """ narrative root summariy as pydantic obj """
+def get_root_summary_narrative() -> RunningSummary:
+    """ narrative root summary as pydantic obj """
     return RunningSummary(
-        SCENE_END_STATE="[INITIALIZATION] Story not yet begun.",
-        EMOTIONAL_BEAT="[INITIALIZATION] Story not yet begun.",
-        IMMEDIATE_TENSION="[INITIALIZATION] Story not yet begun.",
-        GLOBAL_EVENTS="[INITIALIZATION] Story not yet begun.",
-        UNRESOLVED_THREADS="None",
-        WORLD_STATE="[INITIALIZATION] Story not yet begun.",
-        ACTIVE_CHARACTERS="None",
-        GLOBAL_SHIFT="[INITIALIZATION] Story not yet begun.",
+        scene_end_state="[INITIALIZATION] Story not yet begun.",
+        emotional_beat="[INITIALIZATION] Story not yet begun.",
+        immediate_tension="[INITIALIZATION] Story not yet begun.",
+        global_events="[INITIALIZATION] Story not yet begun.",
+        unresolved_threads="None",
+        world_state="[INITIALIZATION] Story not yet begun.",
+        active_characters="None",
+        global_shift="[INITIALIZATION] Story not yet begun.",
     )
 
 
 def get_root_summary_reference() -> RunningSummary:
-    """ reference root summariy in ready formatted str """
-
-    return RunningSummary(
-        local_momentum=LocalMomentum(
-            scene_end_state="[INITIALIZATION] Document not yet begun.",
-            emotional_beat="[INITIALIZATION] Document not yet begun.",
-            immediate_tension="[INITIALIZATION] Document not yet begun."
-        ),
-        global_state=GlobalState(
-            events="The document begins.",
-            unresolved_threads=[],
-            state="[INITIALIZATION] Document not yet begun.",
-            active=[],
-            shift="[INITIALIZATION] Document not yet begun."
-        )
-    )
+    """ reference root summary as pydantic obj - placeholder for future implementation """
+    # TODO: implement reference summary logic when special reference content is added
+    return get_root_summary_narrative()
 
 # ------------------ TOKENIZER ------------------
 
