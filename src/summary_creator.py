@@ -55,15 +55,24 @@ class SummaryCreatorLLM:
             max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
         )
 
-    def _debug_llm_call(self, prompt: str, response: Dict) -> None:
+    def _debug_llm_call(self, prompt: str, response: Dict, scene: Scene) -> None:
+        # path creation for saving
         os.makedirs(self.cfg.debug_dir, exist_ok=True)
         ts = datetime.now().strftime("%H%M%S_%f")
         prompt_path = os.path.join(self.cfg.debug_dir, f"debug_prompt_{self.book_name}_{ts}.md")
         llm_path = os.path.join(self.cfg.debug_dir, f"debug_llm_{self.book_name}_{ts}.json")
+        # add some metadata to content if necessary
+        meta_header_prompt = f"Scene ID: {scene.scene_id}\n\nFull Prompt:\n\n"
+        prompt = meta_header_prompt + prompt
+        response_with_meta = {
+            "scene_id": scene.scene_id,
+            "response": response
+        }
+        # write files
         with open(prompt_path, mode="w", encoding="utf-8") as f:
             f.write(prompt)
         with open(llm_path, mode="w", encoding="utf-8") as f:
-            json.dump(response, f, indent=2, ensure_ascii=False)
+            json.dump(response_with_meta, f, indent=2, ensure_ascii=False)
 
     def _construct_prompt(self, scene: Scene, novel_progress: int, is_narrative: bool) -> str:
         """Construct prompt with system, world_context, rolling summary, scene text, instruction."""
@@ -134,7 +143,7 @@ NOVEL PROGRESS: {novel_progress}%
             raise ValueError(f"No api result for scene: {scene.scene_id}")
         # DEBUG: create logfiles if debug mode activated
         if self.cfg.debug_mode:
-            self._debug_llm_call(prompt, result)
+            self._debug_llm_call(prompt, result, scene)
         return result
 
 
@@ -206,7 +215,13 @@ class SummaryProcessor:
                 novel_progress,
                 is_narrative,
             )
+            # count words from LLM response (dict values) to print words constraints: 320 words
+            total_words = sum(len(str(v).split()) for v in new_running_summary.values())
+            print(f"LLM response amount total words: {total_words}")
+            # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
+            # print amount tokens of summary in target format: allowed 400 tokens
+            print(f"Amount tokens target format: {len(tokenizer.encode(new_running_summary))}")
             # save new running summary at following scene
             self.book_json.scenes[i+1].running_summary = new_running_summary
             # use pydantic json model dump method to write obj into json
