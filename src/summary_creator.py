@@ -209,17 +209,21 @@ class SummaryProcessor:
 
     def run(self, scene_range: Tuple[int, int] = None):
         """
-        - validate scene range tuple if provided, otherwise default to all scenes
+        - validate scene range if user-provided, otherwise construct default to do all scenes
         - if scene processing starts with 1st scene, root summary must be inserted
         """
-        # set scene range tuple default case to "process all scenes from start to end"
         len_scenes = self.book_json.meta.total_scenes
+        # default: set scene range to process all scenes from start to end
         if scene_range is None:
             scene_range = (0, len_scenes)
-        # validate scene range tuple
-        assert scene_range[0] >= 0, "start must be >= 0"
-        assert scene_range[1] <= len_scenes, f"end must be <= {len_scenes}"
-        assert scene_range[0] < scene_range[1], "start must be < end"
+        else:
+            # only validate user-provided range
+            if scene_range[0] < 0:
+                sys.exit("Scene range logic error: start must be >= 0")
+            if scene_range[1] > len_scenes:
+                sys.exit(f"Scene range logic error: end must be <= {len_scenes}")
+            if scene_range[0] >= scene_range[1]:
+                sys.exit("Scene range logic error: start must be < end")
         print(f"Starting process book: {self.book_json.meta.title} ...")
         # check if roots summary needs to be inserted at 1st scene
         if scene_range[0] == 0:
@@ -233,13 +237,18 @@ class SummaryProcessor:
 
 
 if __name__ == "__main__":
+    """
+    - parse cli arguments for missing args & wrong format if optional scene range given
+    - specifying optional scene range means summaries are created only for such; otherwise for all
+    - if valid args:
+        1. book json path is used to setup SummaryProcessor main obj
+        2. scene range is used to start execution; if not specified, default is set in run method
+    """
     if len(sys.argv) < 2:
-        print("Usage: python summary_creator.py <input_book.json> [start,end]")
-        print("Range uses python semantics: start inclusive, end exclusive")
-        print("Example: python summary_creator.py ./data/book.json 0,3  # processes scenes 0,1,2")
+        print("Usage: python summary_creator.py <input_book.json> 0,3 #Scene range 0,3 = Optional")
+        print("Optional Scene range (0,3): python semantics: start inclusive, end exclusive")
+        sys.exit(2)
     else:
-        # parse optional scene range from cli: "0,10" -> (0, 10)
-        # python-style: start inclusive, end exclusive
         scene_range = None
         if len(sys.argv) == 3:
             try:
@@ -247,8 +256,6 @@ if __name__ == "__main__":
                 scene_range = (int(parts[0]), int(parts[1]))
             except (ValueError, IndexError):
                 print("Invalid range format. Use: start,end (e.g., 0,10)")
-                sys.exit(1)
-        # use book json file path for object setup, loading, ...
+                sys.exit(2)
         sp = SummaryProcessor(sys.argv[1])
-        # use optional scene range parameter / none to start scene processing
         sp.run(scene_range)
