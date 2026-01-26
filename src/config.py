@@ -65,7 +65,6 @@ class SummaryConfig(BaseModel):
     prompt_input_format: str = "./prompts/summary_creation/input_format.md"
     prompt_instruction_narrative: str = "./prompts/summary_creation/instruction_narrative.md"
     prompt_instruction_reference: str = "./prompts/summary_creation/instruction_reference.md"
-    debug_mode: bool = True
     debug_dir: str = "./data/debug/summary_creation"
 
 

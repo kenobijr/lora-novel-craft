@@ -5,7 +5,6 @@ Create "Running Summaries" for each scene of a book json
 import sys
 import json
 import os
-from datetime import datetime
 from src.config import (
     Book, Scene, get_tokenizer, SummaryConfig, RunningSummary,
     get_root_summary_narrative, get_root_summary_reference
@@ -13,6 +12,9 @@ from src.config import (
 from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Tuple
+import logging
+from src.logger import setup_logger
+from datetime import datetime
 
 
 # llm model = openrouter id
@@ -34,12 +36,10 @@ if not tokenizer:
 
 
 class SummaryCreatorLLM:
-    def __init__(self, config: SummaryConfig, world_context: str, book_json_path: str):
+    def __init__(self, config: SummaryConfig, world_context: str):
         self.cfg = config
         # world context from book json needed for each llm call
         self.wc = world_context
-        # save title file for debugging
-        self.book_name = os.path.basename(book_json_path).removesuffix(".json")
         # load prompts
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
             self.prompt_system = f.read()
@@ -54,25 +54,8 @@ class SummaryCreatorLLM:
             api_key=api_key,
             max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
         )
-
-    def _debug_llm_call(self, prompt: str, response: Dict, scene: Scene) -> None:
-        # path creation for saving
-        os.makedirs(self.cfg.debug_dir, exist_ok=True)
-        ts = datetime.now().strftime("%H%M%S_%f")
-        prompt_path = os.path.join(self.cfg.debug_dir, f"debug_prompt_{self.book_name}_{ts}.md")
-        llm_path = os.path.join(self.cfg.debug_dir, f"debug_llm_{self.book_name}_{ts}.json")
-        # add some metadata to content if necessary
-        meta_header_prompt = f"Scene ID: {scene.scene_id}\n\nFull Prompt:\n\n"
-        prompt = meta_header_prompt + prompt
-        response_with_meta = {
-            "scene_id": scene.scene_id,
-            "response": response
-        }
-        # write files
-        with open(prompt_path, mode="w", encoding="utf-8") as f:
-            f.write(prompt)
-        with open(llm_path, mode="w", encoding="utf-8") as f:
-            json.dump(response_with_meta, f, indent=2, ensure_ascii=False)
+        # init logger
+        self.logger = logging.getLogger("summary_engine")
 
     def _construct_prompt(self, scene: Scene, novel_progress: int, is_narrative: bool) -> str:
         """Construct prompt with system, world_context, rolling summary, scene text, instruction."""
@@ -119,6 +102,13 @@ NOVEL PROGRESS: {novel_progress}%
         - return validated dict with local_momentum & global_state
         """
         prompt = self._construct_prompt(scene, novel_progress, is_narrative)
+        # log full prompt to logfile before llm query
+        self.logger.debug(
+            f"\n=== SCENE {scene.scene_id} PROMPT START ===\n"
+            f"{prompt}\n"
+            f"=== SCENE {scene.scene_id} PROMPT END ==="
+        )
+        # query llm
         response = self.client.chat.completions.create(
             model=LLM,
             messages=[{"role": "user", "content": prompt}],
@@ -131,19 +121,25 @@ NOVEL PROGRESS: {novel_progress}%
                     "schema": RunningSummary.model_json_schema()
                 }
             },
-            # only needed for qwen3!!!
+            # # only needed for qwen3!!!
             # extra_body={                                         
             #     "provider": {                                         
             #         "only": ["DeepInfra"]                                          
             #     }                                                             
             # }
         )
-        result = json.loads(response.choices[0].message.content)
+        # grab content in raw json for logging
+        result_content = response.choices[0].message.content
+        # log llm response before parsing / formatting
+        self.logger.debug(
+            f"\n=== SCENE {scene.scene_id} RESPONSE START ===\n"
+            f"{result_content}\n"
+            f"=== SCENE {scene.scene_id} RESPONSE END ==="
+        )
+        # parse into python dict rep
+        result = json.loads(result_content)
         if not result:
             raise ValueError(f"No api result for scene: {scene.scene_id}")
-        # DEBUG: create logfiles if debug mode activated
-        if self.cfg.debug_mode:
-            self._debug_llm_call(prompt, result, scene)
         return result
 
 
@@ -153,10 +149,18 @@ class SummaryProcessor:
         self.cfg = config if config is not None else SummaryConfig()
         # save path of book
         self.book_json_path = book_json_path
+        # save name of book file for logging
         # load book json & map into pydantic obj
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_json = Book(**json.load(f))
-        self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context, book_json_path)
+        # init llm
+        self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context)
+        # init logger
+        ts = datetime.now().strftime("%H%M%S_%f")
+        book_name = os.path.basename(book_json_path).removesuffix(".json")
+        log_path = os.path.join(self.cfg.debug_dir, f"{book_name}_summary_{ts}.log")
+        self.logger = setup_logger(log_path)
+        self.logger.info(f"Logger initialized. Processing book: {book_name}")
 
     def _format_running_summary(self, summary_dict: Dict) -> str:
         """
@@ -203,12 +207,12 @@ class SummaryProcessor:
         """
         # python-style range: use directly, no -1 needed
         for i in range(scene_range[0], scene_range[1]):
-            print(f"Starting processing scene id: {self.book_json.scenes[i].scene_id}")
+            self.logger.info(f"Starting processing scene id: {self.book_json.scenes[i].scene_id}")
             # create flag for scene is narrativ type or reference
             is_narrative = True if self.book_json.scenes[i].instruction != "special" else False
             # calc novel progress of scene
             novel_progress = self._calc_novel_progress(self.book_json.scenes[i].scene_id)
-            print("Query LLM ...")
+            self.logger.info("Query LLM ...")
             # get updated rolling summary from llm & format it for saving at scene obj
             new_running_summary = self.llm.get_llm_running_summary(
                 self.book_json.scenes[i],
@@ -217,17 +221,17 @@ class SummaryProcessor:
             )
             # count words from LLM response (dict values) to print words constraints: 320 words
             total_words = sum(len(str(v).split()) for v in new_running_summary.values())
-            print(f"LLM response amount total words: {total_words}")
+            self.logger.info(f"LLM response amount total words: {total_words}")
             # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
             # print amount tokens of summary in target format: allowed 400 tokens
-            print(f"Amount tokens target format: {len(tokenizer.encode(new_running_summary))}")
+            self.logger.info(f"Total amount tokens: {len(tokenizer.encode(new_running_summary))}")
             # save new running summary at following scene
             self.book_json.scenes[i+1].running_summary = new_running_summary
             # use pydantic json model dump method to write obj into json
             with open(self.book_json_path, mode="w", encoding="utf-8") as f:
                 json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
-            print(f"Did save LLM summary to scense id: {self.book_json.scenes[i+1].scene_id}")
+            self.logger.info(f"Summary saved to scene id: {self.book_json.scenes[i+1].scene_id}")
 
     def run(self, scene_range: Tuple[int, int] = None):
         """
@@ -246,16 +250,14 @@ class SummaryProcessor:
                 sys.exit(f"Scene range logic error: end must be <= {len_scenes}")
             if scene_range[0] >= scene_range[1]:
                 sys.exit("Scene range logic error: start must be < end")
-        print(f"Starting process book: {self.book_json.meta.title} ...")
+        self.logger.info(f"Starting process book: {self.book_json.meta.title} ...")
         # check if roots summary needs to be inserted at 1st scene
         if scene_range[0] == 0:
-            print("Setting root summary at 1st scene manually ...")
+            self.logger.info("Setting root summary at 1st scene manually ...")
             self._set_root_summary()
-        print(f"Start processing scenes range: start {scene_range[0]} - end {scene_range[1]}...")
-        print("---------------------------------------------")
+        self.logger.info(f"Processing scenes: start {scene_range[0]} - end {scene_range[1]}...")
         self._process_scenes(scene_range)
-        print("---------------------------------------------")
-        print("Operation finished")
+        self.logger.info("Operation finished")
 
 
 if __name__ == "__main__":
