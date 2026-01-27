@@ -320,13 +320,13 @@ class SummaryProcessor:
         len_scenes = self.book_json.meta.total_scenes
         # default: set scene range to process all scenes from start to end
         if scene_range is None:
-            scene_range = (0, len_scenes)
+            scene_range = (0, len_scenes - 1)
         else:
             # only validate user-provided range
             if scene_range[0] < 0:
                 sys.exit("Scene range logic error: start must be >= 0")
-            if scene_range[1] > len_scenes:
-                sys.exit(f"Scene range logic error: end must be <= {len_scenes}")
+            if scene_range[1] > len_scenes - 1:
+                sys.exit(f"Scene range logic error: end must be <= {len_scenes - 1}")
             if scene_range[0] >= scene_range[1]:
                 sys.exit("Scene range logic error: start must be < end")
         self.logger.info(f"Starting process book: {self.book_json.meta.title} ...")
@@ -348,8 +348,9 @@ if __name__ == "__main__":
         2. scene range is used to start execution; if not specified, default is set in run method
     """
     if len(sys.argv) < 2:
-        print("Usage: python summary_creator.py <input_book.json> 0,3 #Scene range 0,3 = Optional")
-        print("Optional Scene range (0,3): python semantics: start inclusive, end exclusive")
+        print("Usage: python summary_creator.py <input_book.json> [start,end]")
+        print("Range uses array indices. For 18 scenes: 0,17 processes all.")
+        print("Processing scene at index i saves summary to scene at index i+1.")
         sys.exit(2)
     else:
         scene_range = None
