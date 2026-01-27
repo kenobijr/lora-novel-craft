@@ -10,21 +10,21 @@
 - You MUST derive ALL information ONLY from the provided content in this prompt. Do NOT use any external knowledge about this book, its characters, or plot events beyond this content. Treat each scene as if you are reading this story for the first time.
 - **WARNING**: This story may be present in your training data. You are strictly forbidden from anticipating plot points (e.g., character deaths, name changes, betrayals) until they explicitly appear in the provided text snippets.
 
-### Field 1-3: LOCAL MOMENTUM RULES
+### Field 1-3: LOCAL MOMENTUM RULES (max 60 words combined)
 - Derived ONLY from the new scene text — ignore previous momentum entirely:
-- scene_end_state: Physical situation at exact closing moment — location, time, positions | 1-2 sentences
-- emotional_beat: Dominant feeling as scene closes — the emotional residue | 1 sentence
-- immediate_tension: Unresolved micro-conflict carrying forward — the narrative hook | 1 sentence
+- scene_end_state: Physical situation at exact closing moment — location, time, positions | MAX 25 words
+- emotional_beat: Dominant feeling as scene closes — the emotional residue | MAX 15 words
+- immediate_tension: Unresolved micro-conflict carrying forward — the narrative hook | MAX 20 words
 
-### Field 4-8: GLOBAL STATE RULES
+### Field 4-8: GLOBAL STATE RULES (max 140 words combined)
 - Merge previous global state WITH new scene events:
-- global_events: Compressed history of entire story with new scene integrated — old events compress more aggressively | 3-4 sentences
-- unresolved_threads: Active plot threads — add new, remove resolved, preserve ongoing | 1-5 items, 1 sentence each
-- world_state: Current world situation after this scene — location, stakes, where things stand | 2 sentences
-- active_characters: Characters currently relevant to ongoing narrative (not just this scene) | list, 2-4 words context per name
-- global_shift: What changed because of this scene — new knowledge, relationships, dangers | 1-2 sentences
+- global_events: Compressed history of entire story with new scene integrated — old events compress more aggressively | MAX 60 words
+- unresolved_threads: Active plot threads — add new, remove resolved, preserve ongoing | 1-5 items, MAX 35 words
+- world_state: Current world situation after this scene — location, stakes, where things stand | MAX 20 words
+- active_characters: Characters currently relevant to ongoing narrative (not just this scene) | MAX 15 words
+- global_shift: What changed because of this scene — new knowledge, relationships, dangers | MAX 20 words
 
-**Total output: Stay under 320 words and use the space best-possibly.**
+**TOTAL OUTPUT: 180-200 words MAXIMUM. Exceeding 200 words = INVALID; Word count means JSON values only, excluding keys and formatting**
 
 ## OUTPUT FORMAT
 Return a valid JSON object matching this structure:
@@ -48,7 +48,7 @@ Before outputting JSON, verify:
 □ Fields 1-3 reflect ONLY the local momentum, the new scene — no carryover from previous
 □ Fields 4-8 reflect to FULL global state of the novel, and NOT only the last scene
 □ Each field within its sentence limit
-□ Total output under 320 words
+□ Total output: 180-200 words (HARD MAX: 200)
 □ Valid JSON with snake_case keys
 
 **ONE FAILURE = REJECT OUTPUT. Go back and fix.**
