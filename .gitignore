@@ -25,39 +25,37 @@ CLAUDE.md
 mvp.md
 
 # data: book processing pipeline: epub -> jsonl
-# novel "Jack London - The Iron Heel" as E2E for data prep pipeline
 # epub
 data/epub/*
 !data/epub/Jack_London-The_Iron_Heel.epub
-# md_raw
-# raw .md books after mapping from epub -> .md with pandoc
-data/md_raw/*
-!data/md_raw/text/Jack_London-The_Iron_Heel.md
-# cleaned novel content & metadata saved as .md
+
+# md
+# md/raw
+data/md/raw/*
+!data/md/raw/Jack_London-The_Iron_Heel.md
+# md/final/* text/ref/wc
 # sub dirs: text -> novel content / wc -> world context / ref -> diverse reference material
-data/md/text/*
-!data/md/text/Jack_London-The_Iron_Heel.md
-data/md/ref/*
-!data/md/ref/Jack_London-The_Iron_Heel-foreword.md
-data/md/wc/*
-!data/md/wc/Jack_London-The_Iron_Heel-world_context.md
+data/md/final/text/*
+!data/md/final/text/Jack_London-The_Iron_Heel.md
+data/md/final/ref/*
+!data/md/final/ref/Jack_London-The_Iron_Heel-foreword.md
+data/md/final/wc/*
+!data/md/final/wc/Jack_London-The_Iron_Heel-world_context.md
 
-# json base
-data/json_base/*
-!data/json_base/Jack_London-The_Iron_Heel.json
+# json
+# json/base
+data/json/base/*
+!data/json/base/Jack_London-The_Iron_Heel.json
 # json scenes
-data/json_scenes/*
-!data/json_scenes/Jack_London-The_Iron_Heel.json
+data/json/scenes/*
+!data/json/scenes/Jack_London-The_Iron_Heel.json
+# json summary
+data/json/summary/*
+!data/json/summary/Jack_London-The_Iron_Heel.json
 
-#json
-data/json
+# debug & archive
 data/debug
-
-#archives
 data/archive/
 
 # diverse documents / not relevant scipts
 docs/
-
-
-
