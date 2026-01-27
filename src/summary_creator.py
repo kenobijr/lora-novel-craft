@@ -235,7 +235,7 @@ class SummaryProcessor:
         # init llm
         self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context)
         # init logger
-        ts = datetime.now().strftime("%H%M%S_%f")
+        ts = datetime.now().strftime("%H%M%S")
         book_name = os.path.basename(book_json_path).removesuffix(".json")
         log_path = os.path.join(self.cfg.debug_dir, f"{book_name}_summary_{ts}.log")
         self.logger = setup_logger(log_path)
