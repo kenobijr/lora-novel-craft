@@ -158,8 +158,9 @@ Cut repetition and scene logistics first."""
                 return compressed_result
             else:
                 continue
-        # return original response in any case if llm did fail
-        return response
+        # if compression did fail in all iterations, return compressed version of last iteration
+        self.logger.info(f"Compression failed after {self.cfg.max_retries} runs; return last iter.")
+        return compressed_result
 
     def create_summary(
             self,
