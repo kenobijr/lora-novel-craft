@@ -91,7 +91,77 @@ NOVEL PROGRESS: {novel_progress}%
 </instruction>
 """
 
-    def get_llm_running_summary(
+    def _compress_summary(self, scene: Scene, prompt: str, response: Dict, amount_words: int):
+        """
+        - if llm created running summary was greater than allowed max words, compress it
+        - send prompt & response to llm again and instruct it to compress the responsed
+        - retry x times defined in cfg
+        """
+        # save copy of orig response; to send it back as is if llm fails
+        adapted_prompt = f"""CRITICAL: You received following prompt earlier: {prompt}
+You generated the following response for it: {json.dumps(response, indent=2)}
+It had {amount_words} words when counting only the json values.
+**BUT the maximum of total words is {self.cfg.max_words}**.
+
+You must now compress the response by at least {amount_words - self.cfg.max_words} words to bring
+it into the valid max word range.
+
+**Do it in a way, which keeps the most relevant content to fullfill the task best possible
+but within the constraints**. Try to preserve emotional turning points and character motivations.
+Cut repetition and scene logistics first."""
+        for run in range(self.cfg.max_retry + 1):
+            self.logger.info(f"Scene ID: {scene.scene_id} -> Compress run # {run}")
+            # log full prompt to logfile before llm query
+            self.logger.debug(
+                f"\n=== SCENE {scene.scene_id} PROMPT START ===\n"
+                f"{adapted_prompt}\n"
+                f"=== SCENE {scene.scene_id} PROMPT END ==="
+            )
+            compressed_response = self.client.chat.completions.create(
+                model=LLM,
+                messages=[{"role": "user", "content": adapted_prompt}],
+                temperature=0.2,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "running_summary",
+                        "strict": True,
+                        "schema": RunningSummary.model_json_schema()
+                    }
+                },
+                # # only needed for qwen3!!!
+                # extra_body={                                         
+                #     "provider": {                                         
+                #         "only": ["DeepInfra"]                                          
+                #     }                                                             
+                # }
+            )
+            # grab content in raw json for logging
+            compressed_content = compressed_response.choices[0].message.content
+            # log llm response before parsing / formatting
+            self.logger.debug(
+                f"\n=== SCENE {scene.scene_id} RESPONSE START ===\n"
+                f"{compressed_content}\n"
+                f"=== SCENE {scene.scene_id} RESPONSE END ==="
+            )
+            # parse into python dict rep & count words
+            compressed_result = json.loads(compressed_content)
+            # right spot / place?? or directly on result content??
+            if not compressed_result:
+                raise ValueError(f"No api result for scene: {scene.scene_id}")
+            # count words from LLM response (dict values) to print words constraints: 200 words
+            total_words = sum(len(str(v).split()) for v in compressed_result.values())
+            self.logger.info(f"LLM response amount total words: {total_words}")
+            # if response valid return
+            if total_words <= self.cfg.max_words:
+                self.logger.info(f"Scene ID: {scene.scene_id}: Compressed successfully # run {run}")
+                return compressed_result
+            else:
+                continue
+        # return original response in any case if llm did fail
+        return response
+
+    def create_summary(
             self,
             scene: Scene,
             novel_progress: int,
@@ -99,7 +169,7 @@ NOVEL PROGRESS: {novel_progress}%
     ) -> dict:
         """
         - prompt llm to create updated running summary for scene
-        - return validated dict with local_momentum & global_state
+        - if response > max words, do max. 2 trimming llm calls with adapted prompt
         """
         prompt = self._construct_prompt(scene, novel_progress, is_narrative)
         # log full prompt to logfile before llm query
@@ -108,7 +178,6 @@ NOVEL PROGRESS: {novel_progress}%
             f"{prompt}\n"
             f"=== SCENE {scene.scene_id} PROMPT END ==="
         )
-        # query llm
         response = self.client.chat.completions.create(
             model=LLM,
             messages=[{"role": "user", "content": prompt}],
@@ -136,10 +205,20 @@ NOVEL PROGRESS: {novel_progress}%
             f"{result_content}\n"
             f"=== SCENE {scene.scene_id} RESPONSE END ==="
         )
-        # parse into python dict rep
+        # parse into python dict rep & count words
         result = json.loads(result_content)
+        # right spot / place?? or directly on result content??
         if not result:
             raise ValueError(f"No api result for scene: {scene.scene_id}")
+        # count words from LLM response (dict values) to print words constraints: 200 words
+        total_words = sum(len(str(v).split()) for v in result.values())
+        self.logger.info(f"LLM response amount total words: {total_words}")
+        # if llm response not in total words constrain, call llm again to compress content
+        if total_words > self.cfg.max_words:
+            
+            result = self._compress_summary(scene, prompt, result, total_words)
+            
+        # finally return result in any case
         return result
 
 
@@ -214,14 +293,14 @@ class SummaryProcessor:
             novel_progress = self._calc_novel_progress(self.book_json.scenes[i].scene_id)
             self.logger.info("Query LLM ...")
             # get updated rolling summary from llm & format it for saving at scene obj
-            new_running_summary = self.llm.get_llm_running_summary(
+            new_running_summary = self.llm.create_summary(
                 self.book_json.scenes[i],
                 novel_progress,
                 is_narrative,
             )
-            # count words from LLM response (dict values) to print words constraints: 320 words
-            total_words = sum(len(str(v).split()) for v in new_running_summary.values())
-            self.logger.info(f"LLM response amount total words: {total_words}")
+            # # count words from LLM response (dict values) to print words constraints: 200 words
+            # total_words = sum(len(str(v).split()) for v in new_running_summary.values())
+            # self.logger.info(f"LLM response amount total words: {total_words}")
             # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
             # print amount tokens of summary in target format: allowed 400 tokens
