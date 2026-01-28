@@ -142,51 +142,63 @@ Cut repetition and scene logistics first.
         """
         - if llm created running summary was greater than allowed max words, compress it
         - send prompt & response to llm again and instruct it to compress the responsed
-        - retry x times defined in cfg using same prompt each time
+        - do max x runs (defined in cfg) using same prompt each time for well compressed response
+        - 1x retry loop for invalid response (gemini glitch) for each run
         """
         adapted_prompt = self._construct_prompt_compress(prompt, response, amount_words)
+        # max x runs to get well compressed summary; response len decisive if break loop or continue
         for run in range(self.cfg.max_compress_attempts):
-            # log full prompt to logfile before llm query
-            self.logger.debug(
-                f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT START ===\n"
-                f"{adapted_prompt}\n"
-                f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT END ==="
-            )
-            compressed_response = self.client.chat.completions.create(
-                model=LLM,
-                messages=[{"role": "user", "content": adapted_prompt}],
-                temperature=0.5,  # higher vs. summary creation -> must express in other words
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "running_summary",
-                        "strict": True,
-                        "schema": RunningSummary.model_json_schema()
-                    }
-                },
-                # # only needed for qwen3!!!
-                # extra_body={
-                #     "provider": {
-                #         "only": ["DeepInfra"]
-                #     }
-                # }
-            )
-            # grab content in raw json for logging
-            compressed_content = compressed_response.choices[0].message.content
-            # log llm response before parsing / formatting
-            self.logger.debug(
-                f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE START ===\n"
-                f"{compressed_content}\n"
-                f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE END ==="
-            )
-            # parse into python dict rep & count words
-            compressed_result = json.loads(compressed_content)
+            # max 1 retry per run for json error: response format decisive if break loop or continue
+            for attempt in range(2):
+                # log full prompt to logfile before llm query
+                self.logger.debug(
+                    f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT START ===\n"
+                    f"{adapted_prompt}\n"
+                    f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT END ==="
+                )
+                compressed_response = self.client.chat.completions.create(
+                    model=LLM,
+                    messages=[{"role": "user", "content": adapted_prompt}],
+                    temperature=0.5,  # higher vs. summary creation -> must express in other words
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "running_summary",
+                            "strict": True,
+                            "schema": RunningSummary.model_json_schema()
+                        }
+                    },
+                    # # only needed for qwen3!!!
+                    # extra_body={
+                    #     "provider": {
+                    #         "only": ["DeepInfra"]
+                    #     }
+                    # }
+                )
+                # grab content in raw json for logging
+                compressed_content = compressed_response.choices[0].message.content
+                # log llm response before parsing / formatting
+                self.logger.debug(
+                    f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE START ===\n"
+                    f"{compressed_content}\n"
+                    f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE END ==="
+                )
+                # catch json deserialize error
+                try:
+                    # parse into python dict rep & count words
+                    compressed_result = json.loads(compressed_content)
+                    break
+                except json.JSONDecodeError as e:
+                    if attempt == 0:
+                        self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
+                        continue
+                    raise
             # count words from LLM response (dict values) & update stats
             total_words = sum(len(str(v).split()) for v in compressed_result.values())
             self.logger.info(f"Compress run # {run}: LLM response amount words: {total_words}")
             self.stats.compress_runs += 1
             # if response valid return
-            if total_words <= self.cfg.max_words:
+            if total_words <= (self.cfg.max_words + self.cfg.max_words_buffer):
                 self.logger.info(f"Compressed successfully after: run # {run}")
                 self.stats.compressed_successfully += 1
                 return compressed_result
@@ -203,43 +215,54 @@ Cut repetition and scene logistics first.
         """
         - prompt llm to create updated running summary for scene
         - if response > max words, do max. 2 trimming llm calls with adapted prompt
+        - 1x retry loop with exception control flow for invalid json format response (gemini glitch)
         """
         prompt = self._construct_prompt_summary(scene, novel_progress, is_narrative)
-        # log full prompt to logfile before llm query
-        self.logger.debug(
-            f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
-            f"{prompt}\n"
-            f"=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT END ==="
-        )
-        response = self.client.chat.completions.create(
-            model=LLM,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "running_summary",
-                    "strict": True,
-                    "schema": RunningSummary.model_json_schema()
-                }
-            },
-            # # only needed for qwen3!!!
-            # extra_body={
-            #     "provider": {
-            #         "only": ["DeepInfra"]
-            #     }
-            # }
-        )
-        # grab content in raw json for logging
-        result_content = response.choices[0].message.content
-        # log llm response before parsing / formatting
-        self.logger.debug(
-            f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE START ===\n"
-            f"{result_content}\n"
-            f"=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE END ==="
-        )
-        # parse into python dict rep & count words
-        result = json.loads(result_content)
+        for attempt in range(2):
+            # log full prompt to logfile before llm query
+            self.logger.debug(
+                f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
+                f"{prompt}\n"
+                f"=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT END ==="
+            )
+            response = self.client.chat.completions.create(
+                model=LLM,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "running_summary",
+                        "strict": True,
+                        "schema": RunningSummary.model_json_schema()
+                    }
+                },
+                # # only needed for qwen3!!!
+                # extra_body={
+                #     "provider": {
+                #         "only": ["DeepInfra"]
+                #     }
+                # }
+            )
+            # grab content in raw json for logging
+            result_content = response.choices[0].message.content
+            # log llm response before parsing / formatting
+            self.logger.debug(
+                f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE START ===\n"
+                f"{result_content}\n"
+                f"=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE END ==="
+            )
+            # catch json deserialize error
+            try:
+                # parse into python dict rep & count words
+                result = json.loads(result_content)
+                break
+            # at this certain error try 1x again with same prompt & log warning; next time: crash it
+            except json.JSONDecodeError as e:
+                if attempt == 0:
+                    self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
+                    continue
+                raise
         # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"Summary: LLM response amount words: {total_words}")
