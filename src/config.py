@@ -62,8 +62,8 @@ class SummaryConfig(BaseModel):
     """ running summary creation config params """
     max_tokens: int = 400  # token range (final formatted str)
     max_words: int = 200  # word range (raw json dict values summed up (no keys / signs / ...)
-    max_words_buffer: int = 20  # allowed overshoot for word range
-    max_retry: int = 2
+    max_words_buffer: int = 40  # allowed overshoot for word range
+    max_compress_attempts: int = 3
     prompt_system: str = "./prompts/summary_creation/systemmessage.md"
     prompt_input_format: str = "./prompts/summary_creation/input_format.md"
     prompt_instruction_narrative: str = "./prompts/summary_creation/instruction_narrative.md"

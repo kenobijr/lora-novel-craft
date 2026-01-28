@@ -111,7 +111,7 @@ it into the valid max word range.
 **Do it in a way, which keeps the most relevant content to fullfill the task best possible
 but within the constraints**. Try to preserve emotional turning points and character motivations.
 Cut repetition and scene logistics first."""
-        for run in range(self.cfg.max_retry + 1):
+        for run in range(self.cfg.max_compress_attempts):
             # log full prompt to logfile before llm query
             self.logger.debug(
                 f"\n=== SCENE {scene.scene_id} PROMPT START ===\n"
@@ -121,7 +121,7 @@ Cut repetition and scene logistics first."""
             compressed_response = self.client.chat.completions.create(
                 model=LLM,
                 messages=[{"role": "user", "content": adapted_prompt}],
-                temperature=0.2,
+                temperature=0.5,  # higher vs. summary creation -> must express in other words
                 response_format={
                     "type": "json_schema",
                     "json_schema": {
