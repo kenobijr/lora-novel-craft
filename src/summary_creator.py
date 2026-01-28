@@ -36,7 +36,7 @@ if not tokenizer:
 
 
 class SummaryCreatorLLM:
-    def __init__(self, config: SummaryConfig, world_context: str):
+    def __init__(self, config: SummaryConfig, world_context: str, stats: Dict):
         self.cfg = config
         # world context from book json needed for each llm call
         self.wc = world_context
@@ -54,6 +54,8 @@ class SummaryCreatorLLM:
             api_key=api_key,
             max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
         )
+        # stats obj to track progress
+        self.stats = stats
         # init logger
         self.logger = logging.getLogger("summary_engine")
 
@@ -149,17 +151,19 @@ Cut repetition and scene logistics first."""
             # right spot / place?? or directly on result content??
             if not compressed_result:
                 raise ValueError(f"No api result for scene: {scene.scene_id}")
-            # count words from LLM response (dict values) to print words constraints: 200 words
+            # count words from LLM response (dict values) & update stats
             total_words = sum(len(str(v).split()) for v in compressed_result.values())
             self.logger.info(f"LLM response amount total words: {total_words}")
+            self.stats["compress_runs"] += 1
             # if response valid return
             if total_words <= self.cfg.max_words:
                 self.logger.info(f"Scene ID: {scene.scene_id}: Compressed successfully # run {run}")
+                self.stats["compressed_successfully"] += 1
                 return compressed_result
             else:
                 continue
         # if compression did fail in all iterations, return compressed version of last iteration
-        self.logger.info(f"Compression failed after {self.cfg.max_retries} runs; return last iter.")
+        self.logger.info(f"Compression failed after {self.cfg.max_retry + 1} runs; return last iter.")
         return compressed_result
 
     def create_summary(
@@ -211,14 +215,14 @@ Cut repetition and scene logistics first."""
         # right spot / place?? or directly on result content??
         if not result:
             raise ValueError(f"No api result for scene: {scene.scene_id}")
-        # count words from LLM response (dict values) to print words constraints: 200 words
+        # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"LLM response amount total words: {total_words}")
+        self.stats["created"] += 1
         # if llm response not in total words constrain, call llm again to compress content
         if total_words > self.cfg.max_words:
-            
+            self.stats["compressed"] += 1
             result = self._compress_summary(scene, prompt, result, total_words)
-            
         # finally return result in any case
         return result
 
@@ -233,8 +237,15 @@ class SummaryProcessor:
         # load book json & map into pydantic obj
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_json = Book(**json.load(f))
+        # track stats for summary creation ops
+        self.stats = {
+            "created": 0,
+            "compressed": 0,
+            "compress_runs": 0,
+            "compressed_successfully": 0,
+        }
         # init llm
-        self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context)
+        self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context, self.stats)
         # init logger
         ts = datetime.now().strftime("%H%M%S")
         book_name = os.path.basename(book_json_path).removesuffix(".json")
@@ -336,7 +347,24 @@ class SummaryProcessor:
             self.logger.info("Setting root summary at 1st scene manually ...")
             self._set_root_summary()
         self.logger.info(f"Processing scenes: start {scene_range[0]} - end {scene_range[1]}...")
+        self.logger.info("---------------------------------------------")
+        # execute summary creation for specified scenes
         self._process_scenes(scene_range)
+        # calc & create some states for the ops
+        self.logger.info("---------------------------------------------")
+        total_scenes = self.book_json.meta.total_scenes
+        self.logger.info(f"Total summaries created: {self.stats["created"]} / {total_scenes}")
+        self.logger.info(f"Total compressed: {self.stats["compressed"]}")
+        self.logger.info(f"Total compress runs: {self.stats["compress_runs"]}")
+        self.logger.info(f"Total compress success: {self.stats["compressed_successfully"]}")
+        # calc percentages with division by zero guard
+        if self.stats["created"] > 0:
+            pct = int((self.stats["compressed"] / self.stats["created"]) * 100)
+            self.logger.info(f"Share needing compression: {pct}%")
+        if self.stats["compressed"] > 0:
+            pct = int((self.stats["compressed_successfully"] / self.stats["compressed"]) * 100)
+            self.logger.info(f"Share compression successful: {pct}%")
+        self.logger.info("---------------------------------------------")
         self.logger.info("Operation finished")
 
 
