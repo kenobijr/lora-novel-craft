@@ -111,9 +111,17 @@ def get_root_summary_narrative() -> RunningSummary:
 
 
 def get_root_summary_reference() -> RunningSummary:
-    """ reference root summary as pydantic obj - placeholder for future implementation """
-    # TODO: implement reference summary logic when special reference content is added
-    return get_root_summary_narrative()
+    """ reference root summary as pydantic obj for vocab, foreword, ..."""
+    return RunningSummary(
+        scene_end_state="[REFERENCE] Establishing foundational material.",
+        emotional_beat="[REFERENCE] Setting narrative baseline.",
+        immediate_tension="[REFERENCE] No plot tension - knowledge establishment.",
+        global_events="[REFERENCE] No narrative events yet.",
+        unresolved_threads="None - reference material precedes plot.",
+        world_state="[REFERENCE] Pre-narrative context establishment.",
+        active_characters="None introduced in narrative yet.",
+        global_shift="[REFERENCE] Building foundational knowledge base.",
+    )
 
 
 # ------------------ TOKENIZER ------------------
