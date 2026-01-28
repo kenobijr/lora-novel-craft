@@ -366,11 +366,15 @@ class SummaryProcessor:
             novel_progress = self._calc_novel_progress(self.book_json.scenes[i].scene_id)
             self.logger.info("Query LLM ...")
             # get updated rolling summary from llm & format it for saving at scene obj
-            new_running_summary = self.llm.create_summary(
-                self.book_json.scenes[i],
-                novel_progress,
-                is_narrative,
-            )
+            try:
+                new_running_summary = self.llm.create_summary(
+                    self.book_json.scenes[i],
+                    novel_progress,
+                    is_narrative,
+                )
+            except Exception:
+                self.logger.exception(f"Failed processing scene {self.book_json.scenes[i].scene_id}")
+                raise
             # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
             # log amount tokens of summary in target format & save to stats
