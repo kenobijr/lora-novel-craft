@@ -326,9 +326,9 @@ class SummaryProcessor:
         """ print report with stats collected during processing & config params """
         total_scenes = self.book_json.meta.total_scenes
         s = self.stats
-        self.logger.info(f"Summaries created: {s["created"]} of {total_scenes}")
-        self.logger.info(f"Compressed: {s["compressed"]} in {s["compress_runs"]} runs")
-        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s["too_large"]}")
+        self.logger.info(f"Summaries created: {s['created']} of {total_scenes}")
+        self.logger.info(f"Compressed: {s['compressed']} in {s['compress_runs']} runs")
+        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s['too_large']}")
         # calc shares with division by zero guard
         if s["created"] > 0:
             pct = int((s["compressed"] / s["created"]) * 100)

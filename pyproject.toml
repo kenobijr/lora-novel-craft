@@ -1,7 +1,7 @@
 [project]
 name = "lora-novel-craft"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "torch>=2.0.0",
     "transformers>=4.51.0",
@@ -15,9 +15,9 @@ dev = ["pytest", "black", "ruff"]
 
 [tool.black]
 line-length = 100
-target-version = ['py310']
+target-version = ['py312']
 include = '\.pyi?$'
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
