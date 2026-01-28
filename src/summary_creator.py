@@ -236,6 +236,7 @@ class SummaryProcessor:
             "compressed": 0,
             "compress_runs": 0,
             "compressed_successfully": 0,
+            "too_large": 0,
             "total_words": 0,
             "total_tokens": 0,
         }
@@ -311,6 +312,8 @@ class SummaryProcessor:
             amount_tokens = len(tokenizer.encode(new_running_summary))
             self.logger.info(f"Total amount tokens: {amount_tokens}")
             self.stats["total_tokens"] += amount_tokens
+            if amount_tokens > self.cfg.max_tokens:
+                self.stats["too_large"] += 1
             # save new running summary at following scene
             self.book_json.scenes[i+1].running_summary = new_running_summary
             # use pydantic json model dump method to write obj into json
@@ -348,20 +351,22 @@ class SummaryProcessor:
         # calc & create some states for the ops
         self.logger.info("---------------------------------------------")
         total_scenes = self.book_json.meta.total_scenes
-        self.logger.info(f"Total summaries created: {self.stats["created"]} / {total_scenes}")
-        self.logger.info(f"Total summaries compressed: {self.stats["compressed"]} in compress runs: {self.stats["compress_runs"]}")
+        s = self.stats
+        self.logger.info(f"Summaries created: {s["created"]} of {total_scenes}")
+        self.logger.info(f"Compressed: {s["compressed"]} in {s["compress_runs"]} runs")
+        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s["too_large"]}")
         # calc shares with division by zero guard
-        if self.stats["created"] > 0:
-            pct = int((self.stats["compressed"] / self.stats["created"]) * 100)
+        if s["created"] > 0:
+            pct = int((s["compressed"] / s["created"]) * 100)
             self.logger.info(f"Share needing compression: {pct}%")
-        if self.stats["compressed"] > 0:
-            pct = int((self.stats["compressed_successfully"] / self.stats["compressed"]) * 100)
-            self.logger.info(f"Share compression successful: {pct}%")
-        if self.stats["created"] > 0:
-            words_avg = self.stats["total_words"] / self.stats["created"]
-            tokens_avg = self.stats["total_tokens"] / self.stats["created"]
+            pct = int((s["too_large"] / s["created"]) * 100)
+            self.logger.info(f"Share too large: {pct}%")
+            words_avg = s["total_words"] / s["created"]
+            tokens_avg = s["total_tokens"] / s["created"]
             self.logger.info(f"Avg per summary: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
-        self.logger.info("---------------------------------------------")
+        if s["compressed"] > 0:
+            pct = int((s["compressed_successfully"] / s["compressed"]) * 100)
+            self.logger.info(f"Share compression successful: {pct}%")
         self.logger.info("Operation finished")
 
 
