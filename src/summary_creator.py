@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Tuple
 import logging
-from src.logger import setup_logger
 from datetime import datetime
 
 
@@ -36,7 +35,13 @@ if not tokenizer:
 
 
 class SummaryCreatorLLM:
-    def __init__(self, config: SummaryConfig, world_context: str, stats: Stats):
+    def __init__(
+        self,
+        config: SummaryConfig,
+        world_context: str,
+        stats: Stats,
+        logger: logging.Logger
+    ):
         self.cfg = config
         # world context from book json needed for each llm call
         self.wc = world_context
@@ -57,7 +62,7 @@ class SummaryCreatorLLM:
         # stats obj to track progress
         self.stats = stats
         # init logger
-        self.logger = logging.getLogger("summary_engine")
+        self.logger = logger
 
     def _construct_prompt_summary(
             self,
@@ -261,14 +266,53 @@ class SummaryProcessor:
             self.book_json = Book(**json.load(f))
         # track stats for summary creation ops
         self.stats = Stats()
-        # init llm
-        self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context, self.stats)
         # init logger
+        self.logger = self._init_logger()
+        # init llm
+        self.llm = SummaryCreatorLLM(
+            self.cfg,
+            self.book_json.meta.world_context,
+            self.stats,
+            self.logger
+        )
+
+    def _init_logger(self) -> logging.Logger:
+        """ setup logging for module with params from config.py """
+        # set logfile dir, name & path
+        os.makedirs(self.cfg.debug_dir, exist_ok=True)
         ts = datetime.now().strftime("%H%M%S")
-        book_name = os.path.basename(book_json_path).removesuffix(".json")
+        book_name = os.path.basename(self.book_json_path).removesuffix(".json")
         log_path = os.path.join(self.cfg.debug_dir, f"{book_name}_summary_{ts}.log")
-        self.logger = setup_logger(log_path)
-        self.logger.info(f"Logger initialized. Processing book: {book_name}")
+        # setup logger
+        logger = logging.getLogger(__name__)
+        # set to debug at highest level
+        logger.setLevel(logging.DEBUG)
+        # guard to prevent duplicate logging
+        if logger.hasHandlers():
+            logger.handlers.clear()
+        # create formatters: file detailed: [Time] [Level] Message; console minimal
+        file_formatter = logging.Formatter(
+            # We add .{msecs:03.0f} right after {asctime}
+            fmt="[{asctime}.{msecs:03.0f}] [{levelname}] {message}",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            style="{"
+        )
+        console_formatter = logging.Formatter(
+            fmt="{message}",
+            style="{"
+        )
+        # file_handler
+        file_handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+        file_handler.setFormatter(file_formatter)
+        file_handler.setLevel(logging.DEBUG)  # file gets everything
+        # console_handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(logging.INFO)  # console only INFO and above (hide DEBUG noise)
+        # add handlers to logger
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+        return logger
 
     def _format_running_summary(self, summary_dict: Dict) -> str:
         """
@@ -369,7 +413,7 @@ class SummaryProcessor:
         self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
         self.logger.info(f"Max compress attempts: {self.cfg.max_compress_attempts}")
         self.logger.info("---------------------------------------------")
-  
+
     def run(self, scene_range: Tuple[int, int] = None):
         """
         - validate scene range if user-provided, otherwise construct default to do all scenes
