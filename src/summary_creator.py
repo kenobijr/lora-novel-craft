@@ -148,9 +148,9 @@ Cut repetition and scene logistics first.
         for run in range(self.cfg.max_compress_attempts):
             # log full prompt to logfile before llm query
             self.logger.debug(
-                f"\n=== SCENE {scene.scene_id} PROMPT START ===\n"
+                f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT START ===\n"
                 f"{adapted_prompt}\n"
-                f"=== SCENE {scene.scene_id} PROMPT END ==="
+                f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT END ==="
             )
             compressed_response = self.client.chat.completions.create(
                 model=LLM,
@@ -175,9 +175,9 @@ Cut repetition and scene logistics first.
             compressed_content = compressed_response.choices[0].message.content
             # log llm response before parsing / formatting
             self.logger.debug(
-                f"\n=== SCENE {scene.scene_id} RESPONSE START ===\n"
+                f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE START ===\n"
                 f"{compressed_content}\n"
-                f"=== SCENE {scene.scene_id} RESPONSE END ==="
+                f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE END ==="
             )
             # parse into python dict rep & count words
             compressed_result = json.loads(compressed_content)
@@ -207,9 +207,9 @@ Cut repetition and scene logistics first.
         prompt = self._construct_prompt_summary(scene, novel_progress, is_narrative)
         # log full prompt to logfile before llm query
         self.logger.debug(
-            f"\n=== SCENE {scene.scene_id} PROMPT START ===\n"
+            f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
             f"{prompt}\n"
-            f"=== SCENE {scene.scene_id} PROMPT END ==="
+            f"=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT END ==="
         )
         response = self.client.chat.completions.create(
             model=LLM,
@@ -234,9 +234,9 @@ Cut repetition and scene logistics first.
         result_content = response.choices[0].message.content
         # log llm response before parsing / formatting
         self.logger.debug(
-            f"\n=== SCENE {scene.scene_id} RESPONSE START ===\n"
+            f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE START ===\n"
             f"{result_content}\n"
-            f"=== SCENE {scene.scene_id} RESPONSE END ==="
+            f"=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE END ==="
         )
         # parse into python dict rep & count words
         result = json.loads(result_content)
