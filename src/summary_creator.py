@@ -322,6 +322,33 @@ class SummaryProcessor:
             self.logger.info(f"Summary saved to scene id: {self.book_json.scenes[i+1].scene_id}")
             self.logger.info("---------------------------------------------")
 
+    def _create_report(self) -> None:
+        """ print report with stats collected during processing & config params """
+        total_scenes = self.book_json.meta.total_scenes
+        s = self.stats
+        self.logger.info(f"Summaries created: {s["created"]} of {total_scenes}")
+        self.logger.info(f"Compressed: {s["compressed"]} in {s["compress_runs"]} runs")
+        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s["too_large"]}")
+        # calc shares with division by zero guard
+        if s["created"] > 0:
+            pct = int((s["compressed"] / s["created"]) * 100)
+            self.logger.info(f"Share needing compression: {pct}%")
+            pct = int((s["too_large"] / s["created"]) * 100)
+            self.logger.info(f"Share too large: {pct}%")
+            words_avg = s["total_words"] / s["created"]
+            tokens_avg = s["total_tokens"] / s["created"]
+            self.logger.info(f"Avg per summary: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
+        if s["compressed"] > 0:
+            pct = int((s["compressed_successfully"] / s["compressed"]) * 100)
+            self.logger.info(f"Share compression successful: {pct}%")
+        # print relevant params used for this ops
+        self.logger.info("---------------------------------------------")
+        self.logger.info(f"Max tokens: {self.cfg.max_tokens}")
+        self.logger.info(f"Max words: {self.cfg.max_words}")
+        self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
+        self.logger.info(f"Max compress attempts: {self.cfg.max_compress_attempts}")
+        self.logger.info("---------------------------------------------")
+  
     def run(self, scene_range: Tuple[int, int] = None):
         """
         - validate scene range if user-provided, otherwise construct default to do all scenes
@@ -348,25 +375,9 @@ class SummaryProcessor:
         self.logger.info("---------------------------------------------")
         # execute summary creation for specified scenes
         self._process_scenes(scene_range)
-        # calc & create some states for the ops
+        # create closing report
         self.logger.info("---------------------------------------------")
-        total_scenes = self.book_json.meta.total_scenes
-        s = self.stats
-        self.logger.info(f"Summaries created: {s["created"]} of {total_scenes}")
-        self.logger.info(f"Compressed: {s["compressed"]} in {s["compress_runs"]} runs")
-        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s["too_large"]}")
-        # calc shares with division by zero guard
-        if s["created"] > 0:
-            pct = int((s["compressed"] / s["created"]) * 100)
-            self.logger.info(f"Share needing compression: {pct}%")
-            pct = int((s["too_large"] / s["created"]) * 100)
-            self.logger.info(f"Share too large: {pct}%")
-            words_avg = s["total_words"] / s["created"]
-            tokens_avg = s["total_tokens"] / s["created"]
-            self.logger.info(f"Avg per summary: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
-        if s["compressed"] > 0:
-            pct = int((s["compressed_successfully"] / s["compressed"]) * 100)
-            self.logger.info(f"Share compression successful: {pct}%")
+        self._create_report()
         self.logger.info("Operation finished")
 
 
