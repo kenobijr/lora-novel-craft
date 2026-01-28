@@ -132,10 +132,10 @@ Cut repetition and scene logistics first."""
                     }
                 },
                 # # only needed for qwen3!!!
-                # extra_body={                                         
-                #     "provider": {                                         
-                #         "only": ["DeepInfra"]                                          
-                #     }                                                             
+                # extra_body={
+                #     "provider": {
+                #         "only": ["DeepInfra"]
+                #     }
                 # }
             )
             # grab content in raw json for logging
@@ -194,10 +194,10 @@ Cut repetition and scene logistics first."""
                 }
             },
             # # only needed for qwen3!!!
-            # extra_body={                                         
-            #     "provider": {                                         
-            #         "only": ["DeepInfra"]                                          
-            #     }                                                             
+            # extra_body={
+            #     "provider": {
+            #         "only": ["DeepInfra"]
+            #     }
             # }
         )
         # grab content in raw json for logging
@@ -217,8 +217,8 @@ Cut repetition and scene logistics first."""
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"LLM response amount total words: {total_words}")
         self.stats["created"] += 1
-        # if llm response not in total words constrain, call llm again to compress content
-        if total_words > self.cfg.max_words:
+        # if llm response not in total words constraint + buffer, compress it
+        if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
             self.stats["compressed"] += 1
             result = self._compress_summary(scene, prompt, result, total_words)
         # finally return result in any case
