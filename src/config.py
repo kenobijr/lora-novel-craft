@@ -69,6 +69,8 @@ class SummaryConfig(BaseModel):
     prompt_instruction_narrative: str = "./prompts/summary_creation/instruction_narrative.md"
     prompt_instruction_reference: str = "./prompts/summary_creation/instruction_reference.md"
     debug_dir: str = "./data/debug/summary_creation"
+    api_base_url: str = "https://openrouter.ai/api/v1"
+    api_max_retries: int = 3
 
 
 class Stats(BaseModel):

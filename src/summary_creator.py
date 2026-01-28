@@ -50,9 +50,9 @@ class SummaryCreatorLLM:
         with open(self.cfg.prompt_instruction_reference, mode="r", encoding="utf-8") as f:
             self.prompt_instruction_ref = f.read()
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
+            base_url=self.cfg.api_base_url,
             api_key=api_key,
-            max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
+            max_retries=self.cfg.api_max_retries
         )
         # stats obj to track progress
         self.stats = stats
