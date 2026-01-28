@@ -112,7 +112,6 @@ it into the valid max word range.
 but within the constraints**. Try to preserve emotional turning points and character motivations.
 Cut repetition and scene logistics first."""
         for run in range(self.cfg.max_retry + 1):
-            self.logger.info(f"Scene ID: {scene.scene_id} -> Compress run # {run}")
             # log full prompt to logfile before llm query
             self.logger.debug(
                 f"\n=== SCENE {scene.scene_id} PROMPT START ===\n"
@@ -150,15 +149,15 @@ Cut repetition and scene logistics first."""
             compressed_result = json.loads(compressed_content)
             # count words from LLM response (dict values) & update stats
             total_words = sum(len(str(v).split()) for v in compressed_result.values())
-            self.logger.info(f"LLM response amount total words: {total_words}")
+            self.logger.info(f"Compress run # {run}: LLM response amount words: {total_words}")
             self.stats["compress_runs"] += 1
             # if response valid return
             if total_words <= self.cfg.max_words:
-                self.logger.info(f"Scene ID: {scene.scene_id}: Compressed successfully # run {run}")
+                self.logger.info(f"Compressed successfully after: run # {run}")
                 self.stats["compressed_successfully"] += 1
                 return compressed_result
         # if compression did fail in all iterations, return compressed version of last iteration
-        self.logger.info(f"Compression failed after {self.cfg.max_retry + 1} runs; return last iter.")
+        self.logger.info(f"Compression failed; returned last run # {run} as response.")
         return compressed_result
 
     def create_summary(
@@ -209,12 +208,14 @@ Cut repetition and scene logistics first."""
         result = json.loads(result_content)
         # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
-        self.logger.info(f"LLM response amount total words: {total_words}")
+        self.logger.info(f"Summary: LLM response amount words: {total_words}")
         self.stats["created"] += 1
         # if llm response not in total words constraint + buffer, compress it
         if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
             self.stats["compressed"] += 1
             result = self._compress_summary(scene, prompt, result, total_words)
+        # count words final response (compressed or not) to save at stats word counter
+        self.stats["total_words"] += sum(len(str(v).split()) for v in result.values())
         # finally return result in any case
         return result
 
@@ -235,6 +236,8 @@ class SummaryProcessor:
             "compressed": 0,
             "compress_runs": 0,
             "compressed_successfully": 0,
+            "total_words": 0,
+            "total_tokens": 0,
         }
         # init llm
         self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context, self.stats)
@@ -302,19 +305,19 @@ class SummaryProcessor:
                 novel_progress,
                 is_narrative,
             )
-            # # count words from LLM response (dict values) to print words constraints: 200 words
-            # total_words = sum(len(str(v).split()) for v in new_running_summary.values())
-            # self.logger.info(f"LLM response amount total words: {total_words}")
             # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
-            # print amount tokens of summary in target format: allowed 400 tokens
-            self.logger.info(f"Total amount tokens: {len(tokenizer.encode(new_running_summary))}")
+            # log amount tokens of summary in target format & save to stats
+            amount_tokens = len(tokenizer.encode(new_running_summary))
+            self.logger.info(f"Total amount tokens: {amount_tokens}")
+            self.stats["total_tokens"] += amount_tokens
             # save new running summary at following scene
             self.book_json.scenes[i+1].running_summary = new_running_summary
             # use pydantic json model dump method to write obj into json
             with open(self.book_json_path, mode="w", encoding="utf-8") as f:
                 json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
             self.logger.info(f"Summary saved to scene id: {self.book_json.scenes[i+1].scene_id}")
+            self.logger.info("---------------------------------------------")
 
     def run(self, scene_range: Tuple[int, int] = None):
         """
@@ -346,16 +349,18 @@ class SummaryProcessor:
         self.logger.info("---------------------------------------------")
         total_scenes = self.book_json.meta.total_scenes
         self.logger.info(f"Total summaries created: {self.stats["created"]} / {total_scenes}")
-        self.logger.info(f"Total compressed: {self.stats["compressed"]}")
-        self.logger.info(f"Total compress runs: {self.stats["compress_runs"]}")
-        self.logger.info(f"Total compress success: {self.stats["compressed_successfully"]}")
-        # calc percentages with division by zero guard
+        self.logger.info(f"Total summaries compressed: {self.stats["compressed"]} in compress runs: {self.stats["compress_runs"]}")
+        # calc shares with division by zero guard
         if self.stats["created"] > 0:
             pct = int((self.stats["compressed"] / self.stats["created"]) * 100)
             self.logger.info(f"Share needing compression: {pct}%")
         if self.stats["compressed"] > 0:
             pct = int((self.stats["compressed_successfully"] / self.stats["compressed"]) * 100)
             self.logger.info(f"Share compression successful: {pct}%")
+        if self.stats["created"] > 0:
+            words_avg = self.stats["total_words"] / self.stats["created"]
+            tokens_avg = self.stats["total_tokens"] / self.stats["created"]
+            self.logger.info(f"Avg per summary: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
         self.logger.info("---------------------------------------------")
         self.logger.info("Operation finished")
 
