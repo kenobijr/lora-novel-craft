@@ -148,9 +148,6 @@ Cut repetition and scene logistics first."""
             )
             # parse into python dict rep & count words
             compressed_result = json.loads(compressed_content)
-            # right spot / place?? or directly on result content??
-            if not compressed_result:
-                raise ValueError(f"No api result for scene: {scene.scene_id}")
             # count words from LLM response (dict values) & update stats
             total_words = sum(len(str(v).split()) for v in compressed_result.values())
             self.logger.info(f"LLM response amount total words: {total_words}")
@@ -210,9 +207,6 @@ Cut repetition and scene logistics first."""
         )
         # parse into python dict rep & count words
         result = json.loads(result_content)
-        # right spot / place?? or directly on result content??
-        if not result:
-            raise ValueError(f"No api result for scene: {scene.scene_id}")
         # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"LLM response amount total words: {total_words}")

@@ -135,10 +135,6 @@ class SceneSplitterLLM:
         # with open("./data/debug/json/test_scene_partition.json", mode="r", encoding="utf-8") as f:
         #     result = json.load(f)
 
-        # base validation
-        if not result:
-            raise ValueError(f"No api result for prompt: {full_prompt}")
-
         # if debug mode activated prompt & llm response will be saved
         if self.cfg.debug_mode:
             self._debug_llm_call(full_prompt, result)
