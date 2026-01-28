@@ -71,6 +71,17 @@ class SummaryConfig(BaseModel):
     debug_dir: str = "./data/debug/summary_creation"
 
 
+class Stats(BaseModel):
+    """ track stats through the process to create final report at end """
+    created: int = 0
+    compressed: int = 0
+    compress_runs: int = 0
+    compressed_successfully: int = 0
+    too_large: int = 0
+    total_words: int = 0
+    total_tokens: int = 0
+
+
 class RunningSummary(BaseModel):
     """ llm response schema for running summary creation """
     scene_end_state: str  # where/how does this scene physically end
@@ -101,6 +112,7 @@ def get_root_summary_reference() -> RunningSummary:
     """ reference root summary as pydantic obj - placeholder for future implementation """
     # TODO: implement reference summary logic when special reference content is added
     return get_root_summary_narrative()
+
 
 # ------------------ TOKENIZER ------------------
 

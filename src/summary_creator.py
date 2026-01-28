@@ -6,7 +6,7 @@ import sys
 import json
 import os
 from src.config import (
-    Book, Scene, get_tokenizer, SummaryConfig, RunningSummary,
+    Book, Scene, get_tokenizer, SummaryConfig, RunningSummary, Stats,
     get_root_summary_narrative, get_root_summary_reference
 )
 from dotenv import load_dotenv
@@ -36,7 +36,7 @@ if not tokenizer:
 
 
 class SummaryCreatorLLM:
-    def __init__(self, config: SummaryConfig, world_context: str, stats: Dict):
+    def __init__(self, config: SummaryConfig, world_context: str, stats: Stats):
         self.cfg = config
         # world context from book json needed for each llm call
         self.wc = world_context
@@ -179,11 +179,11 @@ Cut repetition and scene logistics first.
             # count words from LLM response (dict values) & update stats
             total_words = sum(len(str(v).split()) for v in compressed_result.values())
             self.logger.info(f"Compress run # {run}: LLM response amount words: {total_words}")
-            self.stats["compress_runs"] += 1
+            self.stats.compress_runs += 1
             # if response valid return
             if total_words <= self.cfg.max_words:
                 self.logger.info(f"Compressed successfully after: run # {run}")
-                self.stats["compressed_successfully"] += 1
+                self.stats.compressed_successfully += 1
                 return compressed_result
         # if compression did fail in all iterations, return compressed version of last iteration
         self.logger.info(f"Compression failed; returned last run # {run} as response.")
@@ -238,13 +238,13 @@ Cut repetition and scene logistics first.
         # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"Summary: LLM response amount words: {total_words}")
-        self.stats["created"] += 1
+        self.stats.created += 1
         # if llm response not in total words constraint + buffer, compress it
         if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
-            self.stats["compressed"] += 1
+            self.stats.compressed += 1
             result = self._compress_summary(scene, prompt, result, total_words)
         # count words final response (compressed or not) to save at stats word counter
-        self.stats["total_words"] += sum(len(str(v).split()) for v in result.values())
+        self.stats.total_words += sum(len(str(v).split()) for v in result.values())
         # finally return result in any case
         return result
 
@@ -260,15 +260,7 @@ class SummaryProcessor:
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_json = Book(**json.load(f))
         # track stats for summary creation ops
-        self.stats = {
-            "created": 0,
-            "compressed": 0,
-            "compress_runs": 0,
-            "compressed_successfully": 0,
-            "too_large": 0,
-            "total_words": 0,
-            "total_tokens": 0,
-        }
+        self.stats = Stats()
         # init llm
         self.llm = SummaryCreatorLLM(self.cfg, self.book_json.meta.world_context, self.stats)
         # init logger
@@ -340,9 +332,9 @@ class SummaryProcessor:
             # log amount tokens of summary in target format & save to stats
             amount_tokens = len(tokenizer.encode(new_running_summary))
             self.logger.info(f"Total amount tokens: {amount_tokens}")
-            self.stats["total_tokens"] += amount_tokens
+            self.stats.total_tokens += amount_tokens
             if amount_tokens > self.cfg.max_tokens:
-                self.stats["too_large"] += 1
+                self.stats.too_large += 1
             # save new running summary at following scene
             self.book_json.scenes[i+1].running_summary = new_running_summary
             # use pydantic json model dump method to write obj into json
@@ -355,20 +347,20 @@ class SummaryProcessor:
         """ print report with stats collected during processing & config params """
         total_scenes = self.book_json.meta.total_scenes
         s = self.stats
-        self.logger.info(f"Summaries created: {s['created']} of {total_scenes}")
-        self.logger.info(f"Compressed: {s['compressed']} in {s['compress_runs']} runs")
-        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s['too_large']}")
+        self.logger.info(f"Summaries created: {s.created} of {total_scenes}")
+        self.logger.info(f"Compressed: {s.compressed} in {s.compress_runs} runs")
+        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s.too_large}")
         # calc shares with division by zero guard
-        if s["created"] > 0:
-            pct = int((s["compressed"] / s["created"]) * 100)
+        if s.created > 0:
+            pct = int((s.compressed / s.created) * 100)
             self.logger.info(f"Share needing compression: {pct}%")
-            pct = int((s["too_large"] / s["created"]) * 100)
+            pct = int((s.too_large / s.created) * 100)
             self.logger.info(f"Share too large: {pct}%")
-            words_avg = s["total_words"] / s["created"]
-            tokens_avg = s["total_tokens"] / s["created"]
+            words_avg = s.total_words / s.created
+            tokens_avg = s.total_tokens / s.created
             self.logger.info(f"Avg per summary: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
-        if s["compressed"] > 0:
-            pct = int((s["compressed_successfully"] / s["compressed"]) * 100)
+        if s.compressed > 0:
+            pct = int((s.compressed_successfully / s.compressed) * 100)
             self.logger.info(f"Share compression successful: {pct}%")
         # print relevant params used for this ops
         self.logger.info("---------------------------------------------")
