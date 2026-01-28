@@ -160,8 +160,6 @@ Cut repetition and scene logistics first."""
                 self.logger.info(f"Scene ID: {scene.scene_id}: Compressed successfully # run {run}")
                 self.stats["compressed_successfully"] += 1
                 return compressed_result
-            else:
-                continue
         # if compression did fail in all iterations, return compressed version of last iteration
         self.logger.info(f"Compression failed after {self.cfg.max_retry + 1} runs; return last iter.")
         return compressed_result
