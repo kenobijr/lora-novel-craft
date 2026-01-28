@@ -59,8 +59,17 @@ class SummaryCreatorLLM:
         # init logger
         self.logger = logging.getLogger("summary_engine")
 
-    def _construct_prompt(self, scene: Scene, novel_progress: int, is_narrative: bool) -> str:
-        """Construct prompt with system, world_context, rolling summary, scene text, instruction."""
+    def _construct_prompt_summary(
+            self,
+            scene: Scene,
+            novel_progress: int,
+            is_narrative: bool
+    ) -> str:
+        """
+        - construct prompt for case "summary creation" on base of .md prompt files
+        - content from this script added to .md prompt files: 
+            - world_context, novel_progress, rolling summary, scene text
+        """
         prompt_instruction = (
             self.prompt_instruction_nar
             if is_narrative
@@ -93,14 +102,18 @@ NOVEL PROGRESS: {novel_progress}%
 </instruction>
 """
 
-    def _compress_summary(self, scene: Scene, prompt: str, response: Dict, amount_words: int):
+    def _construct_prompt_compress(self, prompt: str, response: Dict, amount_words: int) -> str:
         """
-        - if llm created running summary was greater than allowed max words, compress it
-        - send prompt & response to llm again and instruct it to compress the responsed
-        - retry x times defined in cfg
+        - construct prompt for case "compress summary" on base of previous summary prompt & response
+        - no .md prompt files in this special case, instead all defined in this method
         """
-        # save copy of orig response; to send it back as is if llm fails
-        adapted_prompt = f"""CRITICAL: You received following prompt earlier: {prompt}
+        return f"""
+<system>
+{self.prompt_system}
+</system>
+
+<instruction>
+CRITICAL: You received following prompt earlier: {prompt}
 You generated the following response for it: {json.dumps(response, indent=2)}
 It had {amount_words} words when counting only the json values.
 **BUT the maximum of total words is {self.cfg.max_words}**.
@@ -110,7 +123,23 @@ it into the valid max word range.
 
 **Do it in a way, which keeps the most relevant content to fullfill the task best possible
 but within the constraints**. Try to preserve emotional turning points and character motivations.
-Cut repetition and scene logistics first."""
+Cut repetition and scene logistics first.
+</instruction>
+"""
+
+    def _compress_summary(
+            self,
+            scene: Scene,
+            prompt: str,
+            response: Dict,
+            amount_words: int
+    ) -> Dict:
+        """
+        - if llm created running summary was greater than allowed max words, compress it
+        - send prompt & response to llm again and instruct it to compress the responsed
+        - retry x times defined in cfg using same prompt each time
+        """
+        adapted_prompt = self._construct_prompt_compress(prompt, response, amount_words)
         for run in range(self.cfg.max_compress_attempts):
             # log full prompt to logfile before llm query
             self.logger.debug(
@@ -170,7 +199,7 @@ Cut repetition and scene logistics first."""
         - prompt llm to create updated running summary for scene
         - if response > max words, do max. 2 trimming llm calls with adapted prompt
         """
-        prompt = self._construct_prompt(scene, novel_progress, is_narrative)
+        prompt = self._construct_prompt_summary(scene, novel_progress, is_narrative)
         # log full prompt to logfile before llm query
         self.logger.debug(
             f"\n=== SCENE {scene.scene_id} PROMPT START ===\n"
