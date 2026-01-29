@@ -3,7 +3,7 @@
 - Finetune SOTA small-midsize Open Source LLMs with LoRA / QLoRA to become skilled Novel Authors of certain flavors.
 - Finetuned Models should be able to create 100 pages cohesive novels
 - Tech Stack: Python, Pytorch, Hugging Face Transformers, ...
-- Core modules will be data-prep, train (= lora finetune), inference
+- Core modules will be data-prep, train, inference
 - Narrative is split up into "Semantic Scenes" chunks
 - World Context & Rolling Summaries are used to ensure narrative cohesion (Recursive Reprompting)
 
@@ -15,7 +15,7 @@
 
 ## Model / Tech Stack / Tools
 
-### Base Model: Qwen3-30B-A3B-Thinking-2507
+### Base Model: Qwen3-30B-A3B-Thinking-2507 (TBD)
 - Total params: 30.5B
 - Active params: 3.3B (MoE: 128 experts, 8 active per token)
 - Context: 256K native, extendable to 1M tokens
@@ -28,7 +28,7 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 
 **Context Len / Token Math**
 - Total context length of training data: 4096 tokens (1.3 tokens per word) for efficient Finetuning
-    - Must not be exceeded during train due to fixed setup
+- Tokenizer used at data-prep: "Qwen/Qwen3-30B-A3B-Thinking-2507" (transformers)
 - Context Injection (prepended before Scene / Narrative):
   - System prompt: ~150 tokens
   - World Context: ~400 tokens
@@ -40,24 +40,22 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 
 -> Share Narrative vs. Context: 2:1 to 3:1
 
-### Stage 1: Convert .epub to .md via Pandoc (CLI) & manual cleaning -> ./data/md_raw/
-- Convert .epub inot .md with Pandoc to to clean XML / HTML tags but preserve semantic logic (italics / bold ...)
+### Stage 1: Convert .epub to .md via Pandoc (CLI) & manual cleaning -> ./data/md/raw/
+- Convert .epub to .md with Pandoc to to clean XML / HTML tags but preserve semantic logic (italics / bold ...)
 ```pandoc input.epub -f epub -t gfm-smart --wrap=none -o output.md```
 - Manual / Claude Code pre-cleaning & formatting:
-  1. Manually delete noise: Title Page / End of Book / ... or add related logic to downstream md_cleaner.py script
+  1. Manually delete noise: Title Page / End of novel / ... or add related logic to downstream md_cleaner.py script
   2. Standardize Chapter Headers as anchors: "# Chapter 1: My Eagle" or "# Chapter 1: My Eagle"
-- Split book into separate .md files for certain reference data (e.g. character list, ....)
-  1. Novel / Story / Narrative
-  2. Reference data
 
-### Stage 2: Clean .md with script -> ./data/md_clean/
+### Stage 2: Clean .md with script & split Narrative from Reference content -> ./data/md/final/
 - Process common anchors / css attritbutes / footnote patterns  into .md format
 - Clean noise & normalise formatting
-- save as cleaned .md
-- [md_cleaner.py](./scripts/md_cleaner.py)
+- Split book into separate .md files for certain reference data (e.g. character list, ....)
+  1. Novel / Story / Narrative (./data/md/final/text/)
+  2. Reference data (./data/md/final/ref/)
 
-### Stage 3: Create Base .json files -> ./data/json_base/
-- Create 1 json template file per book for 1x metadata and n scenes
+### Stage 3: Create Base .json files -> ./data/json/base/
+- Create 1 json base file per novel with Claude Code agent
 - Data format:
 {
   "meta": {
@@ -71,36 +69,27 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
   },
   "scenes": []
 }
-- Use Claude Code agent; let it calc meta world_count & total_chapters with bash calls; fill the rest with "null"
-- [base_json_creator_agent](./.claude/agents/agent-base_json_creator.md)
 
-#### Stage 4: Create World Context for each book -> ./data/json_base/
-- Create "World Context" / "World Rules" as constitution for each book
+#### Stage 4: Create World Context for each novel -> ./data/json/base/
+- Create "World Context" / "World Rules" as constitution for each novel
 - Must not exceed 400 tokens -> 300 - 320 words
-- Will be added into training data and to give LLMs context for splitting chapters into Semantic scenes and for creating recursive summarys
-- Chosen model: **Gemini 3 Flash**:
-  - 1M token context = can process a 500K word book in one single pass
-  - Cheap
-- Save response into json meta["world_context"]
-- [world_context_creation_prompt](./prompts/world_context_creation.md)
 
-#### Stage 5: Parse Book text into Semanctic Scenes -> ./data/json_scenes/
+#### Stage 5: Split Narrative into Semanctic Scenes -> ./data/json/scenes/
 - Parse Chapters into base unit "Semantic Scenes" (smaller than chapters)
 - Target: ~2000-3000 tokens (~1500 - 2300 words) per Scene
-- Tokenizer: "Qwen/Qwen3-30B-A3B-Thinking-2507" (transformers)
-##### Logic Scene creation (Chapter by Chapter):
-  1. Split into paragraphs with sep: "\n\n"
-  2. Merge to paragraph blocks of min size: 75 tokens
-  3. Task LLM to merge paragraph blocks along semantic breakpoints (setting change, location)
-    - Range: 400 - 1000 tokens per scene
-    - "Goldilocks Zone": ~600-800 tokens
-  4. Create final **Semantic Scenes** by merging LLM cut scenes to target range: 3000k tokens
-##### LLM model / SDK:
-  - qwen-2.5-72b-instruct / Gemini 2.0 Flash Lite / Gemini 2.5 Pro
-  - OpenAI SDK
-  - JSON Schema Enforcement enabled
-##### Data Format Scene
-
+##### 5.1 Process:
+  1. Process Chapter by Chapter of input book json (deterministic)
+  2. Split into paragraphs with sep: "\n\n" (deterministic)
+  3. Merge to paragraph blocks of min size: 75 tokens (deterministic)
+  4. LLM merges paragraph blocks into *Atomic Semantic Scenes* (AI)
+    - Along semantic breakpoints (setting change, location)
+    - LLM receives context in form of "World Context" & detailed instructions
+    - Target Range: 400 - 1000 tokens per atomic scene
+    - **Goldilocks Zone: ~600-800 tokens**
+  5. Merge LLM cut atomic scenese into final **Semantic Scenes**: (deterministic)
+    - Target range: 3000k tokens hard max
+    - Greedy Merge
+##### 5.2 JSON Data Schema:
 {
   "meta": {
     "book_id": "iron_heel_london",
@@ -118,26 +107,52 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
       "chapter_title": "My Eagle",
       "instruction": null,
       "text": "",
-      "recursive_summary": null
+      "running_summary": null
     },
   ]
 }
+##### 5.3 Handling of Reference Content
+- Relevant special content like Vocab / Foreword / ... is split into scenes manually
+- Such scenes are prepended to the Narrative Semantic Scenes and flagged
 
-##### Execution
-- Scene ID is counted up from book meta "total_scenes": 0"
-- Meta "word_count" & "total_scenes" is updated by script after processing
-- Insert special content as references / separate scenes manually
-[scene_creator.py](./scripts/scene_creator.py)
-[scene_splitting_prompt](./prompts/scene_splitting.md)
-
-
-### Stage 6: Create Rolling Summaries for Semantic Scenes
-- This approach, validated by research into "Infinite Context" agents, effectively compresses the "Long Term Memory" into a semantic vector (the summary text) that fits within the prompt
-- Process:
-  - Create Root Summary for scene 1
-  - Take world context + Rolling summary current scene (n) + scene text current scene (n)
-  - Add prompt & query llm to update the current rolling summary with this content best possible (within the token constraints) to produce the Rolling summary for the next scene (n + 1)
-  - Output is saved at each scene object
+#### Stage 6: Create Semantic Scenes specific Rolling Summaries
+- Compress states of narrative into Rolling Summaries (like LSTM but in natural language) along Semantic Scenes as timesteps
+- Each Semantic Scene's Rolling Summary attribute contains the compressed Narrative: **what happened so far up to this specific Semantic Scene?**
+- Running Summary must not be greater than 400 tokens
+##### 6.1 Structure / Content
+Each Rolling Summary is clustered into 2 logically separate categories / 8 attributes with separate token / word restraints:
+- **LOCAL MOMENTUM**| Last scene / Labels / Mood / Suspense | max 60 words combined:
+  - scene_end_state: | MAX 25 words
+  - emotional_beat: | MAX 15 words
+  - immediate_tension: | MAX 20 words
+- **GLOBAL STATE**| Whole story / What happened up to now? Threads? | max 140 words combined
+  - global_events: | MAX 60 words
+  - unresolved_threads: | MAX 35 words
+  - world_state: | MAX 20 words
+  - active_characters: | MAX 15 words
+  - global_shift: | MAX 20 words
+##### 6.2 Process
+- Create Root Summary for scene 1 with empty "story begins" values
+- Take world context + running summary current scene (n) + text current scene (n) to construct prompt
+- Query LLM with JSON response enforcement schema
+- If LLM "create summary" response too long:
+  - Execute follow-up LLM compress calls on the previous response content
+  - Try up to 3 times using same input
+- If all compress calls fail to deliver response under token threshold, take response of last compress call
+- Take this new gen running summary to construct prompt to create running summary for next scene and so on
+##### 6.3 Prompt Setup
+- Systemmessage
+- Input / Content description
+- World Context (Fixed static file, as used before)
+- Running Summary
+  - NOVEL PROGRESS: [Progress: XX%] (=Current Scene / Total amount scenes %)
+  - LOCAL MOMENTUM: -> check llm response template
+  - WORLD STATE: -> check llm response template
+- Text content current scene
+- Instruction
+##### 6.4 Handling of Reference Content Scenes
+- Construct special root running summary for reference scenes
+- Construct special prompt instruction to handle reference scenes
 
 
 ### Stage 7: Define special tokens & prompts
@@ -208,7 +223,10 @@ Perplexity alone won't capture creative quality - you'll need manual review
 
 ## Sources
 - Are Large Language Models Capable of Generating Human-Level Narratives? (https://arxiv.org/pdf/2407.13248)
-- Plan-and-Write: Towards Better Automatic Storytelling (https://www.researchgate.net/publication/335380574_Plan-and-Write_Towards_Better_Automatic_Storytelling)
+- Plan-and-Write: Towards Better Automatic Storytelling (https://www.researchgate.netpublication335380574_Plan-and-Write_Towards_Better_Automatic_Storytelling)
+- RecurrentGPT: Interactive Generation of (Arbitrarily) Long Text (https://arxiv.org/abs/2305.13304)
+
+
 
 
 ## After MVP

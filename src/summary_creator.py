@@ -1,5 +1,21 @@
 """
-Create "Running Summaries" for each scene of a book json
+Compress states of novel narrative into Rolling Summaries (like LSTM but in natural language) along
+Semantic Scenes as timesteps. Each Semantic Scene's Rolling Summary attribute contains compressed
+Narrative: what happened so far up to this specific Semantic Scene?
+
+Process:
+- Create Root Summary for scene 1 with empty "story begins" values
+- Take world context + running summary current scene (n) + text current scene (n) & construct prompt
+- Query LLM with JSON response enforcement schema
+- If LLM "create summary" response too long:
+  - Execute follow-up LLM compress calls on the previous response content
+  - Higher temperature compared to "create summary" calls
+  - Try up to 3 times using same input
+- If all compress calls fail to deliver response under token threshold
+  - Take response of last compress call
+  - Log violation
+- Map LLM response into final str format and save at book json scene obj
+- Take this new gen running summary to construct prompt to create running summary for next scene...
 """
 
 import sys
