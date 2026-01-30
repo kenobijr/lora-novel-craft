@@ -126,6 +126,10 @@ def get_root_summary_reference() -> RunningSummary:
 # ------------------ INSTRUCTION TUNING LOGIC ------------------
 
 
+class InstructionConfig(BaseModel):
+    max_words: int = 80
+
+
 class SceneInstruction(BaseModel):
     scene_goal: str  # Primary event/revelation/decision that must occur
     characters_present: str  # Character 1; Character 2, ....
