@@ -9,21 +9,6 @@
 
 ---
 
-## Live Model / Setcard
-
----
-
-## Model / Tech Stack / Tools
-
-### Base Model: Qwen3-30B-A3B-Thinking-2507 (TBD)
-- Total params: 30.5B
-- Active params: 3.3B (MoE: 128 experts, 8 active per token)
-- Context: 256K native, extendable to 1M tokens
-
-https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
-
----
-
 ## Dataset Pipeline
 
 **Context Len / Token Math**
@@ -115,7 +100,7 @@ https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507
 - Relevant special content like Vocab / Foreword / ... is split into scenes manually
 - Such scenes are prepended to the Narrative Semantic Scenes and flagged
 
-#### Stage 6: Create Semantic Scenes specific Rolling Summaries
+#### Stage 6: Create Rolling Summaries (Semantic Scenes specific)
 - Compress states of narrative into Rolling Summaries (like LSTM but in natural language) along Semantic Scenes as timesteps
 - Each Semantic Scene's Rolling Summary attribute contains the compressed Narrative: **what happened so far up to this specific Semantic Scene?**
 - Running Summary must not be greater than 400 tokens
@@ -154,36 +139,45 @@ Each Rolling Summary is clustered into 2 logically separate categories / 8 attri
 - Construct special root running summary for reference scenes
 - Construct special prompt instruction to handle reference scenes
 
+### Stage 7: Create Instructions (Semantic Scenes specific)
+- Instruction backtranslation with content along Semantic Scene lines:
+- *Create "a specific instruction, that would have prompted this text in this context*
 
-### Stage 7: Define special tokens & prompts
-- Add new TBD special tokens; use existing ones <think> / </think>
-- Add suitable prompts <user>......</user> / <assistant> , .....
+### Stage 8: Create final training in format JSONL 
+- Wrap content into special tokens <|im_start|> (Start of block) <|im_end|> (End of block)
+- Run "Compiler Script" to flattens JSONs into JSONL
 
-### Stage 8: Final training format JSONL with prompts & special tokens
-- run a simple "Compiler Script" that flattens the JSONs + related content into efficient JSONL
-- this format is native to HuggingFace datasets library and Industry standard for LLM fine-tuning
+---
 
-## Train -> Dataset Scale (LLM-DRAFT)
+## Inference / Novel creation pipeline
+1. Create Story Seed (Human task)
+  - Rough idea of story
+  - World Context
+2. Story Outlining / Hierarchical Outlining
+- With Story Seed as input, LLM outlines the story and breaks it down into Scene Goals
+- list of 20-50 semantic scene "stubs" or one-sentence goals
+3. python script to loop model through creating defined range of scenes
+  - For each Scene creation call following content is provided:
+    - systemmessage
+    - world context
+    - running summary
+    - scene goal / instruction
+  - After each new generated Scene, the running summary is updated with it
 
-- For 5-10 books, assuming 50,000 words per book, we have ~500,000 words (~750,000 tokens).
-- Chunk size: 4096 tokens.
-- VRAM Usage	~18-22 GB (Fits on 1x RTX 3090/4090)
-- Total Chunks: ~180 - 200.
-- This is a "Small Data" regime. To prevent overfitting (where the model memorizes the books verbatim), we must use:
-- High LoRA Rank (r=64 or 128): To allow sufficient capacity for stylistic adaptation.
-- Low Epochs (3-5): Monitoring validation loss strictly.
+---
 
-## Train -> Model Tuning / LoRA setup / Train strategy (LLM-DRAFT)
-Model Architecture (Confirmed from HuggingFace)
+## Train (TBD)
 
-Qwen3-30B-A3B-Thinking-2507:
+### Model / Tech Stack / Tools
+
+Qwen3-30B-A3B-Instruct-2507 (TBD)
 - Total params: 30.5B
 - Active params: 3.3B (MoE: 128 experts, 8 active per token)
 - Context: 256K native, extendable to 1M tokens
-- Special feature: Thinking mode (outputs <think> reasoning)
 
----
-QLoRA Compatibility Analysis
+https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507
+
+### QLoRA Compatibility Analysis
 
 1. Unsloth Support:
   - Officially supports Qwen3-30B-A3B QLoRA fine-tuning
@@ -198,42 +192,24 @@ QLoRA Compatibility Analysis
   - MoEs work especially well with quantization - experts less affected by lower precision
   - bitsandbytes + PEFT fully supports MoE architectures
 
-## Machine
-  - RunPod: ~$0.30-0.50/hr for RTX 4090 (24GB VRAM) - sufficient for Mistral Nemo 12B QLoRA
-  - Vast.ai: Similar pricing, more options
-  - Lambda Labs: ~$1.10/hr for A100 40GB - overkill but very stable
-  - Recommendation: RunPod or Vast.ai with RTX 4090 (24GB) for cost efficiency
 
+### Setup
+- For 5-10 books, assuming 50,000 words per book, we have ~500,000 words (~750,000 tokens).
+- Chunk size: 4096 tokens.
+- VRAM Usage	~18-22 GB (Fits on 1x RTX 3090/4090)
+- Total Chunks: ~180 - 200.
+- This is a "Small Data" regime. To prevent overfitting (where the model memorizes the books verbatim), we must use:
+- High LoRA Rank (r=64 or 128): To allow sufficient capacity for stylistic adaptation.
+- Low Epochs (3-5): Monitoring validation loss strictly.
 
-## Inference / Novel creation pipeline
-1. Planning / Global / Hierarchical Outline
-- Models first generate a multi-level outline (e.g., acts > chapters > scenes), then fill iteratively. This mimics human writing, improving global coherence 
-- generate a list of 20-50 semantic scene "stubs" or one-sentence goals
-- Include "Reasoning about Turning Points": Let llm not only "outline some story", but "include certain turning points": setback, climax, ...
-2. create / define metadata to create world context / root rolling summary / root novel / base story / amount semantic scenes / chapters
-3. python script loops the model through creating defined (or range defined) amount of scenes / chapters, each with
-  - systemmessage to model, all this aforementioned metadata, and then instruction like "write semantic scene / chapter 1 / 10"
-  - after each new gen semantic scene, the rolling summary is updated with the additional scene
-  - so in next loop call for next semantic scene, the model with have the updated summary
-
+---
 
 ## Evaluation
-Perplexity alone won't capture creative quality - you'll need manual review
 
+---
 
 ## Sources
+- Jack London - The Iron Heel; Public Domain: https://www.gutenberg.org/ebooks/1164
 - Are Large Language Models Capable of Generating Human-Level Narratives? (https://arxiv.org/pdf/2407.13248)
 - Plan-and-Write: Towards Better Automatic Storytelling (https://www.researchgate.netpublication335380574_Plan-and-Write_Towards_Better_Automatic_Storytelling)
 - RecurrentGPT: Interactive Generation of (Arbitrarily) Long Text (https://arxiv.org/abs/2305.13304)
-
-
-
-
-## After MVP
-- Add Chain of Thought (CoT) into the context for reasoning models
-
-## Example Book GH:
-- Jack London - The Iron Heel
-- Public Domain: https://www.gutenberg.org/ebooks/1164
-- Used version: EPUB (no images, older E-readers)
-
