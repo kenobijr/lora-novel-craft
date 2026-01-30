@@ -123,6 +123,15 @@ def get_root_summary_reference() -> RunningSummary:
         global_shift="[REFERENCE] Building foundational knowledge base.",
     )
 
+# ------------------ INSTRUCTION TUNING LOGIC ------------------
+
+
+class SceneInstruction(BaseModel):
+    scene_goal: str  # Primary event/revelation/decision that must occur
+    characters_present: str  # Character 1; Character 2, ....
+    emotional_beat: str  # The dominant emotion of the scene
+    constraints: str  # Location, time pressure, secrets in play, physical limitations
+
 
 # ------------------ TOKENIZER ------------------
 
