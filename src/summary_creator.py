@@ -353,7 +353,8 @@ class SummaryProcessor:
         logger.addHandler(console_handler)
         return logger
 
-    def _format_running_summary(self, summary_dict: Dict) -> str:
+    @staticmethod
+    def _format_running_summary(summary_dict: Dict) -> str:
         """
         - take running summary as python dict rep and map into target .md styled str format
         - stay in sync to ## .md format of earlier generated content: scenes, world_context
