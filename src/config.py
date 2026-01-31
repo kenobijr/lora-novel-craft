@@ -147,13 +147,4 @@ class SceneInstruction(BaseModel):
 
 # ------------------ TOKENIZER ------------------
 
-
-# tokenizor singleton qwen
-_tokenizer = None
-
-
-def get_tokenizer() -> AutoTokenizer:
-    global _tokenizer
-    if _tokenizer is None:
-        _tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
-    return _tokenizer
+TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")

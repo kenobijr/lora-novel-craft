@@ -10,12 +10,12 @@ Files needed via CLI:
 2. output_book.json
 - must be in specified format and contain "world context" content about book (is send to llm)
 """
-import sys
+
 import os
 import re
 import json
 import argparse
-from src.config import get_tokenizer, SceneConfig, Book, Scene, ScenePartitioning
+from src.config import TOKENIZER, SceneConfig, Book, Scene, ScenePartitioning
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -32,11 +32,6 @@ load_dotenv()
 api_key = os.getenv("OPEN_ROUTER_KEY")
 if not api_key:
     raise ValueError("could not load API key...")
-
-# load tokenizer
-tokenizer = get_tokenizer()
-if not tokenizer:
-    raise ValueError("could not load tokenizer...")
 
 
 class SceneSplitterLLM:
@@ -214,7 +209,7 @@ class BookProcessor:
         """
         lines = []
         for i, p in enumerate(chapter, start=1):
-            tok_p = len(tokenizer.encode(p))
+            tok_p = len(TOKENIZER.encode(p))
             lines.append(f"[P:{i}|Tok:{tok_p}] {p}")
         return "\n".join(lines)
 
@@ -254,7 +249,7 @@ class BookProcessor:
             # stats for scene size / amount of llm cut atomic scenes
             print(f"Received response by LLM with amount of Atomic Scenes: {len(atomic_scenes)}")
             avg_atomic_scene = sum(
-                len(tokenizer.encode(scene)) for scene in atomic_scenes
+                len(TOKENIZER.encode(scene)) for scene in atomic_scenes
             ) / len(atomic_scenes)
             print(f"Token avg per Atomic Scene before processing: {avg_atomic_scene:,.2f}")
             # merge atomic scenes into bigger target semantic scenes up to specified max size
@@ -262,7 +257,7 @@ class BookProcessor:
             token_counter = 0
             running_scene = ""
             for scene in atomic_scenes:
-                tok_current = len(tokenizer.encode(scene))
+                tok_current = len(TOKENIZER.encode(scene))
                 # if running scene, together with current scene, under threshold -> add up
                 if token_counter + tok_current <= self.cfg.max_scene_size:
                     running_scene += ("\n\n" + scene) if running_scene else scene
@@ -283,7 +278,7 @@ class BookProcessor:
             # stats for final processed semantic scenes
             print(f"Amount Semantic scenes after processing: {len(semantic_scenes)}")
             avg_semantic_scene = sum(
-                len(tokenizer.encode(scene)) for scene in semantic_scenes
+                len(TOKENIZER.encode(scene)) for scene in semantic_scenes
             ) / len(semantic_scenes)
             print(f"Token avg per Semantic Scene after processing: {avg_semantic_scene:,.2f}")
             print("---------------------------------------------")
@@ -337,7 +332,7 @@ class BookProcessor:
             bucket = ""
             bucket_counter = 0
             for p in raw_paragraphs:
-                p_tok = len(tokenizer.encode(p))
+                p_tok = len(TOKENIZER.encode(p))
                 # case 1: bucket is empty
                 if not bucket:
                     # if atomic paragraph is greater than min size append it to p_blocks else bucket

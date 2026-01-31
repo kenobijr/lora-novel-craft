@@ -1,11 +1,10 @@
 import os
-import sys
 import json
 import argparse
 from openai import OpenAI
 from dotenv import load_dotenv
 from src.utils import parse_scene_range
-from src.config import get_tokenizer, InstructionConfig, Book, Scene, SceneInstruction
+from src.config import TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction
 from typing import Tuple
 
 # llm model = openrouter id
@@ -19,11 +18,6 @@ load_dotenv()
 api_key = os.getenv("OPEN_ROUTER_KEY")
 if not api_key:
     raise ValueError("could not load API key...")
-
-# load tokenizer
-tokenizer = get_tokenizer()
-if not tokenizer:
-    raise ValueError("could not load tokenizer...")
 
 
 class InstructionCreatorLLM:

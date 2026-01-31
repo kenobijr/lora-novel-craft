@@ -24,7 +24,7 @@ from src.utils import parse_scene_range
 import json
 import os
 from src.config import (
-    Book, Scene, get_tokenizer, SummaryConfig, RunningSummary, SummaryStats,
+    Book, Scene, TOKENIZER, SummaryConfig, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
 from dotenv import load_dotenv
@@ -45,11 +45,6 @@ load_dotenv()
 api_key = os.getenv("OPEN_ROUTER_KEY")
 if not api_key:
     raise ValueError("could not load API key...")
-
-# load tokenizer
-tokenizer = get_tokenizer()
-if not tokenizer:
-    raise ValueError("could not load tokenizer...")
 
 
 class SummaryCreatorLLM:
@@ -411,7 +406,7 @@ class SummaryProcessor:
             # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
             # log amount tokens of summary in target format & save to stats
-            amount_tokens = len(tokenizer.encode(new_running_summary))
+            amount_tokens = len(TOKENIZER.encode(new_running_summary))
             self.logger.info(f"Total amount tokens: {amount_tokens}")
             self.stats.total_tokens += amount_tokens
             if amount_tokens > self.cfg.max_tokens:
