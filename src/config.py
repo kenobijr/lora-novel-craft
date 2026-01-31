@@ -16,6 +16,8 @@ API_KEY = os.getenv("OPEN_ROUTER_KEY")
 if not API_KEY:
     raise ValueError("OPEN_ROUTER_KEY not found in environment")
 
+TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
+
 # ------------------ BOOK / SCENE CREATION LOGIC ------------------
 
 
@@ -144,8 +146,11 @@ class InstructionConfig(BaseModel):
     prompt_instruction: str = "./prompts/instruction_creation/instruction.md"
     # inference systemmessage to be added as metadata to llm calls
     inference_systemmessage: str = "./prompts/inference/systemmessage.md"
+    # url
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3
+    # debug
+    debug_dir: str = "./data/debug/instruction_creation"
 
 
 class SceneInstruction(BaseModel):
@@ -154,5 +159,3 @@ class SceneInstruction(BaseModel):
     emotional_beat: str  # The dominant emotion of the scene
     constraints: str  # Location, time pressure, secrets in play, physical limitations
 
-
-TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")

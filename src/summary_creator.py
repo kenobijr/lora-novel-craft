@@ -2,7 +2,6 @@
 Compress states of novel narrative into Running Summaries (like LSTM but in natural language) along
 Semantic Scenes as timesteps. Each Semantic Scene's Running Summary attribute contains compressed
 Narrative: what happened so far up to this specific Semantic Scene?
-
 Process:
 - Create Root Summary for scene 1 with empty "story begins" values
 - Take world context + running summary current scene (n) + text current scene (n) & construct prompt

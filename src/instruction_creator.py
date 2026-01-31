@@ -1,9 +1,10 @@
 import json
 import argparse
 from openai import OpenAI
-from src.utils import parse_scene_range
+from src.utils import parse_scene_range, init_logger
 from src.config import API_KEY, TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction
 from typing import Tuple
+import logging
 
 # llm model = openrouter id
 LLM = "google/gemini-2.0-flash-lite-001"
@@ -13,7 +14,7 @@ LLM = "google/gemini-2.0-flash-lite-001"
 
 
 class InstructionCreatorLLM:
-    def __init__(self, config: InstructionConfig, world_context: str):
+    def __init__(self, config: InstructionConfig, world_context: str, logger: logging.Logger):
         self.cfg = config
         self.wc = world_context
         # load prompts to use at llm call
@@ -26,6 +27,7 @@ class InstructionCreatorLLM:
         # load inference systemmessage to add it as metadata content to prompt
         with open(self.cfg.inference_systemmessage, mode="r", encoding="utf-8") as f:
             self.inference_systemmessage = f.read()
+        self.logger = logger
         self.client = OpenAI(
             api_key=API_KEY,
             base_url=self.cfg.api_base_url,
@@ -70,11 +72,11 @@ NOVEL PROGRESS: {novel_progress}%
         prompt = self._construct_prompt(scene, novel_progress)
         for attempt in range(2):
             # log full prompt to logfile before llm query
-            # self.logger.debug(
-            #     f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
-            #     f"{prompt}\n"
-            #     f"=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT END ==="
-            # )
+            self.logger.debug(
+                f"\n=== INSTRUCTION CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
+                f"{prompt}\n"
+                f"=== INSTRUCTION CREATION: SCENE {scene.scene_id} PROMPT END ==="
+            )
             response = self.client.chat.completions.create(
                 model=LLM,
                 messages=[{"role": "user", "content": prompt}],
@@ -97,11 +99,11 @@ NOVEL PROGRESS: {novel_progress}%
             # grab content in raw json for logging
             result_content = response.choices[0].message.content
             # log llm response before parsing / formatting
-            # self.logger.debug(
-            #     f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE START ===\n"
-            #     f"{result_content}\n"
-            #     f"=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE END ==="
-            # )
+            self.logger.debug(
+                f"\n=== INSTRUCTION CREATION: SCENE {scene.scene_id} RESPONSE START ===\n"
+                f"{result_content}\n"
+                f"=== INSTRUCTION CREATION: SCENE {scene.scene_id} RESPONSE END ==="
+            )
             # catch json deserialize error
             try:
                 # parse into python dict rep & count words
@@ -110,7 +112,7 @@ NOVEL PROGRESS: {novel_progress}%
             # at this certain error try 1x again with same prompt & log warning; next time: crash it
             except json.JSONDecodeError as e:
                 if attempt == 0:
-                    # self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
+                    self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
                     continue
                 raise
         # # count words from LLM response (dict values) & update stats / logs
@@ -133,25 +135,27 @@ class InstructionProcessor:
         self.book_json_path = book_json_path
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
+        self.logger = init_logger(__name__, self.cfg.debug_dir, self.book_json_path)
         self.llm = InstructionCreatorLLM(
             self.cfg,
-            self.book_content.meta.world_context
+            self.book_content.meta.world_context,
+            self.logger
         )
-        # stats object
-        # logger
 
     def _process_scenes(self, scene_range):
         len_scenes = len(self.book_content.scenes)
         for i in range(scene_range[0], scene_range[1]):
-            # print(self.book_content.scenes[i].scene_id)
             current_scene = self.book_content.scenes[i]
+            self.logger.info(f"Starting processing scene id: {current_scene.scene_id}")
             # calc novel progress of scene
             novel_progress = int(((current_scene.scene_id - 1) / len_scenes) * 100)
+            self.logger.info("Query LLM ...")
             new_instruction = self.llm.create_instruction(
                 current_scene,
                 novel_progress
             )
             print(new_instruction)
+            # bring dict response into target .md format to save at json scene
             break
 
     def run(self, scene_range: Tuple[int, int]):
@@ -165,7 +169,14 @@ class InstructionProcessor:
                 raise ValueError(f"end must be <= {len_scenes}")
             if scene_range[0] >= scene_range[1]:
                 raise ValueError("start must be < end")
+        self.logger.info(f"Starting process book: {self.book_content.meta.title} ...")
+        self.logger.info(f"Processing scenes: start {scene_range[0]} - end {scene_range[1]}...")
+        self.logger.info("---------------------------------------------")
         self._process_scenes(scene_range)
+        # create closing report
+        self.logger.info("---------------------------------------------")
+        # self._create_report()
+        self.logger.info("Operation finished")
 
 
 def main():
