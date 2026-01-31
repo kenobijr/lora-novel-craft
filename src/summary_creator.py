@@ -18,19 +18,16 @@ Process:
 - Take this new gen running summary to construct prompt to create running summary for next scene...
 """
 
-import sys
 import argparse
-from src.utils import parse_scene_range
 import json
-import os
 from src.config import (
     API_KEY, Book, Scene, TOKENIZER, SummaryConfig, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
+from src.utils import parse_scene_range, init_logger
 from openai import OpenAI
 from typing import Dict, Tuple
 import logging
-from datetime import datetime
 
 # llm model = openrouter id
 LLM = "google/gemini-2.0-flash-lite-001"
@@ -292,6 +289,10 @@ class SummaryProcessor:
         # load book json & map into pydantic obj
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
+        # setup logfile & init logger with it
+        self.logger = init_logger(__name__, self.cfg.debug_dir, self.book_json_path)
+        # track stats for report creation at end
+        self.stats = SummaryStats()
         # init llm
         self.llm = SummaryCreatorLLM(
             self.cfg,
@@ -299,48 +300,6 @@ class SummaryProcessor:
             self.stats,
             self.logger
         )
-        # track stats for summary creation ops
-        self.stats = SummaryStats()
-        # init logger
-        self.logger = self._init_logger()
-
-    def _init_logger(self) -> logging.Logger:
-        """ setup logging for module with params from config.py """
-        # set logfile dir, name & path
-        os.makedirs(self.cfg.debug_dir, exist_ok=True)
-        ts = datetime.now().strftime("%H%M%S")
-        book_name = os.path.basename(self.book_json_path).removesuffix(".json")
-        log_path = os.path.join(self.cfg.debug_dir, f"{book_name}_summary_{ts}.log")
-        # setup logger
-        logger = logging.getLogger(__name__)
-        # set to debug at highest level
-        logger.setLevel(logging.DEBUG)
-        # guard to prevent duplicate logging
-        if logger.hasHandlers():
-            logger.handlers.clear()
-        # create formatters: file detailed: [Time] [Level] Message; console minimal
-        file_formatter = logging.Formatter(
-            # We add .{msecs:03.0f} right after {asctime}
-            fmt="[{asctime}.{msecs:03.0f}] [{levelname}] {message}",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            style="{"
-        )
-        console_formatter = logging.Formatter(
-            fmt="{message}",
-            style="{"
-        )
-        # file_handler
-        file_handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
-        file_handler.setFormatter(file_formatter)
-        file_handler.setLevel(logging.DEBUG)  # file gets everything
-        # console_handler
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(console_formatter)
-        console_handler.setLevel(logging.INFO)  # console only INFO and above (hide DEBUG noise)
-        # add handlers to logger
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-        return logger
 
     @staticmethod
     def _format_running_summary(summary_dict: Dict) -> str:
