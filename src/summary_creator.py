@@ -1,6 +1,6 @@
 """
-Compress states of novel narrative into Rolling Summaries (like LSTM but in natural language) along
-Semantic Scenes as timesteps. Each Semantic Scene's Rolling Summary attribute contains compressed
+Compress states of novel narrative into Running Summaries (like LSTM but in natural language) along
+Semantic Scenes as timesteps. Each Semantic Scene's Running Summary attribute contains compressed
 Narrative: what happened so far up to this specific Semantic Scene?
 
 Process:
@@ -91,7 +91,7 @@ class SummaryCreatorLLM:
         """
         - construct prompt for case "summary creation" on base of .md prompt files
         - content from this script added to .md prompt files:
-            - world_context, novel_progress, rolling summary, scene text
+            - world_context, novel_progress, running summary, scene text
         """
         prompt_instruction = (
             self.prompt_instruction_nar
@@ -111,10 +111,10 @@ class SummaryCreatorLLM:
 {self.wc}
 </world_context>
 
-<current_rolling_summary>
+<current_running_summary>
 NOVEL PROGRESS: {novel_progress}%
 {scene.running_summary}
-</current_rolling_summary>
+</current_running_summary>
 
 <scene_text>
 {scene.text}
@@ -398,7 +398,7 @@ class SummaryProcessor:
             # calc novel progress of scene
             novel_progress = int(((current_scene.scene_id - 1) / len_scenes) * 100)
             self.logger.info("Query LLM ...")
-            # get updated rolling summary from llm & format it for saving at scene obj
+            # get updated running summary from llm & format it for saving at scene obj
             try:
                 new_running_summary = self.llm.create_summary(
                     current_scene,
