@@ -19,6 +19,8 @@ Process:
 """
 
 import sys
+import argparse
+from src.utils import parse_scene_range
 import json
 import os
 from src.config import (
@@ -88,7 +90,7 @@ class SummaryCreatorLLM:
     ) -> str:
         """
         - construct prompt for case "summary creation" on base of .md prompt files
-        - content from this script added to .md prompt files: 
+        - content from this script added to .md prompt files:
             - world_context, novel_progress, rolling summary, scene text
         """
         prompt_instruction = (
@@ -470,11 +472,11 @@ class SummaryProcessor:
         else:
             # only validate user-provided range
             if scene_range[0] < 0:
-                sys.exit("Scene range logic error: start must be >= 0")
+                raise ValueError("start must be >= 0")
             if scene_range[1] > len_scenes - 1:
-                sys.exit(f"Scene range logic error: end must be <= {len_scenes - 1}")
+                raise ValueError(f"end must be <= {len_scenes - 1}")
             if scene_range[0] >= scene_range[1]:
-                sys.exit("Scene range logic error: start must be < end")
+                raise ValueError("start must be < end")
         self.logger.info(f"Starting process book: {self.book_json.meta.title} ...")
         # check if roots summary needs to be inserted at 1st scene
         if scene_range[0] == 0:
@@ -490,27 +492,31 @@ class SummaryProcessor:
         self.logger.info("Operation finished")
 
 
+def main():
+    """
+    cli entry point for summary creation on book json
+    - default: for each scene in book json scene list a summary is created and saved at next scene
+    - provide optional scene range arg to create summaries for only certain range of scenes
+    - "Usage: python summary_creator.py <input_book.json> <start,end>"
+    - attention:
+        - Due to logic "process scene n -> creates summary for scene n+1", last scene not processed!
+        - To process all of 18 total scenes -> specify: 0,17
+    """
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument(
+        "book_path",
+        help="path to book json file",
+    )
+    parser.add_argument(
+        "scene_range",
+        nargs="?",
+        type=parse_scene_range,
+        help="optional range as start,end (e.g. 0,10)",
+    )
+    args = parser.parse_args()
+    sp = SummaryProcessor(args.book_path)
+    sp.run(args.scene_range)
+
+
 if __name__ == "__main__":
-    """
-    - parse cli arguments for missing args & wrong format if optional scene range given
-    - specifying optional scene range means summaries are created only for such; otherwise for all
-    - if valid args:
-        1. book json path is used to setup SummaryProcessor main obj
-        2. scene range is used to start execution; if not specified, default is set in run method
-    """
-    if len(sys.argv) < 2:
-        print("Usage: python summary_creator.py <input_book.json> [start,end]")
-        print("Range uses array indices. For 18 scenes: 0,17 processes all.")
-        print("Processing scene at index i saves summary to scene at index i+1.")
-        sys.exit(2)
-    else:
-        scene_range = None
-        if len(sys.argv) == 3:
-            try:
-                parts = sys.argv[2].split(",")
-                scene_range = (int(parts[0]), int(parts[1]))
-            except (ValueError, IndexError):
-                print("Invalid range format. Use: start,end (e.g., 0,10)")
-                sys.exit(2)
-        sp = SummaryProcessor(sys.argv[1])
-        sp.run(scene_range)
+    main()
