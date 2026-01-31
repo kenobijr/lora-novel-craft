@@ -1,20 +1,20 @@
 """
 Split up a novel saved in .md into logical Semantic Scene chunks (smaller than chapters) as
-perparation to use them in a dataset for LLM Finetuning.
+preparation to use them in a dataset for LLM Finetuning.
 - judge LLM is tasked to split each book chapter into "Atomic Scenes"
 - after this scenes are merged into final Semantic Scenes up to a specified token boundary
-
 Files needed via CLI:
 1. input_book.md
 - must contain cleaned book text for n chapters
 - chapters must be separated by "# Chapter 1" or "# Chapter 2: Some title" as context anchors
 2. output_book.json
-- must be in specefied format and contain "world context" content about book (is send to llm)
+- must be in specified format and contain "world context" content about book (is send to llm)
 """
 import sys
 import os
 import re
 import json
+import argparse
 from src.config import get_tokenizer, SceneConfig, Book, Scene, ScenePartitioning
 from datetime import datetime
 from dotenv import load_dotenv
@@ -123,22 +123,19 @@ class SceneSplitterLLM:
                 }
             },
             # fits only on qwen3!!!
-            extra_body={                                                   
-                "provider": {                                         
-                    "only": ["DeepInfra"]                                          
-                }                                                             
+            extra_body={
+                "provider": {
+                    "only": ["DeepInfra"]
+                }
             }
         )
         result = json.loads(response.choices[0].message.content)
-
         # # DEBUGGING without live llm calls // replace llm response by test file in same format
         # with open("./data/debug/json/test_scene_partition.json", mode="r", encoding="utf-8") as f:
         #     result = json.load(f)
-
         # if debug mode activated prompt & llm response will be saved
         if self.cfg.debug_mode:
             self._debug_llm_call(full_prompt, result)
-
         # further validations
         # scenes are consecutive (no gaps/overlaps)
         last_boundary = 0
@@ -151,17 +148,16 @@ class SceneSplitterLLM:
                     f"is not greater than previous boundary ({last_boundary})."
                 )
             last_boundary = current_boundary
-        # end_paragraph final scene shouldequal total amount paragraphs in chapter
-        # correct it llm calcs falsely; otherwise text could be lost
+        # end_paragraph final scene should be equal total amount paragraphs in chapter
+        # correct if llm calcs falsely; otherwise text could be lost
         if last_boundary < amount_p:
             diff = amount_p - last_boundary
             print("---------------------------------------------")
-            print(f"WARN: LLM missed p: Ended at {last_boundary}vs.{amount_p}). Auto-correcting...")
+            print(f"WARN: LLM missed p: Ended at {last_boundary} vs. {amount_p}). Auto-correcting...")
             # force extend the very last scene to include the missing paragraphs
             result["scenes"][-1]["end_paragraph"] = amount_p
             print(f"correction completed; difference of {diff} corrected.")
             print("---------------------------------------------")
-
         # return validated list
         return result["scenes"]
 
@@ -172,24 +168,24 @@ class BookProcessor:
     - pass world_context further & init scene splitting llm class with it
     - save scene objects to self.book_json during processing
     """
-    def __init__(self, input_book_md: str, output_book_json: str, config=None):
+    def __init__(self, input_book_path: str, output_book_path: str, config=None):
         # get globals / config parameters from data_prep config dataclass
         self.cfg = config if config is not None else SceneConfig()
         # parse & save content from book md file: narrative as one formatted str
-        with open(input_book_md, mode="r", encoding="utf-8") as f:
+        with open(input_book_path, mode="r", encoding="utf-8") as f:
             self.raw_text = f.read()
         # file path target json file
-        self.book_json_path = output_book_json
+        self.book_json_path = output_book_path
         # parse & save content from book json file: structured book meta data
         # 1. unpack dict from json.load into kw arguments -> 2. create pydantic book obj (=validate)
-        with open(output_book_json, mode="r", encoding="utf-8") as f:
+        with open(output_book_path, mode="r", encoding="utf-8") as f:
             self.book_json = Book(**json.load(f))
         # save original wc from book json sep for stats
         self.orig_wc = self.book_json.meta.word_count
         # init llm -> pass world context strfrom book json, book json path & config
         self.llm = SceneSplitterLLM(
             self.book_json.meta.world_context,
-            output_book_json,
+            output_book_path,
             self.cfg
         )
         # raw text splitted into chapters during processing
@@ -341,7 +337,6 @@ class BookProcessor:
             bucket = ""
             bucket_counter = 0
             for p in raw_paragraphs:
-                # calc size once
                 p_tok = len(tokenizer.encode(p))
                 # case 1: bucket is empty
                 if not bucket:
@@ -355,7 +350,7 @@ class BookProcessor:
                 # case 2: content in bucket
                 else:
                     # if p & bucket content are greater than threshold, empty bucket; else add to it
-                    if (bucket_counter + p_tok) >= self.cfg.min_paragraph_size:
+                    if bucket_counter + p_tok >= self.cfg.min_paragraph_size:
                         chapter_blocks.append(f"{bucket}\n\n{p}")
                         bucket = ""
                         bucket_counter = 0
@@ -392,10 +387,10 @@ class BookProcessor:
         """
         print("Starting process ...")
         self.chapters = self._text_to_chapters()
-        print(f"Splitted chapters into list: {len(self.chapters)}")
+        print(f"Split chapters into list: {len(self.chapters)}")
         print("---------------------------------------------")
         chapter_paragraphs = self._split_to_p_blocks()
-        print("Splitted chapters into paragraphs as additional level...")
+        print("Split chapters into paragraphs as additional level...")
         print(f"Amount paragraphs in 1st chapter after splitting: {len(chapter_paragraphs[0])}")
         print("---------------------------------------------")
         scenes = self._create_semantic_scenes(chapter_paragraphs)
@@ -413,9 +408,24 @@ class BookProcessor:
         print("-------Operation completed successfully.-------")
 
 
+def main():
+    """
+    cli entry point for converting .md novels into .json with narrative split into Semantic Scenes
+    - Usage: python scene_creator.py <input_book_path.md> <output_book_path.json>
+    """
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument(
+        "input_book_path",
+        help="path to input book md file",
+    )
+    parser.add_argument(
+        "output_book_path",
+        help="path to output book json file",
+    )
+    args = parser.parse_args()
+    bp = BookProcessor(args.input_book_path, args.output_book_path)
+    bp.run()
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python scene_creator.py <input_book.md> <output_book.json")
-    else:
-        bp = BookProcessor(sys.argv[1], sys.argv[2])
-        bp.run()
+    main()
