@@ -1,5 +1,7 @@
 import sys
 import json
+import argparse
+from src.utils import parse_scene_range
 from src.config import get_tokenizer, InstructionConfig, Book
 from typing import Tuple
 
@@ -27,27 +29,36 @@ class InstructionProcessor:
             scene_range = (0, len_scenes)
         else:
             if scene_range[0] < 0:
-                raise ValueError("...")
+                raise ValueError("start must be >= 0")
             if scene_range[1] > len_scenes:
-                raise ValueError("...")
+                raise ValueError(f"end must be <= {len_scenes}")
             if scene_range[0] >= scene_range[1]:
-                raise ValueError("...")
+                raise ValueError("start must be < end")
         self._process_scenes(scene_range)
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python summary_creator.py <input_book.json> 0,10")
-        sys.exit(2)
-    else:
-        scene_range = None
-        if len(sys.argv) == 3:
-            try:
-                parts = sys.argv[2].split(",")
-                scene_range = (int(parts[0]), int(parts[1]))
-            except (IndexError, ValueError):
-                print("Usage: 2nd argument must be range with 2 numbers split by ',': e.g.: 0,5")
-                sys.exit(2)
+def main():
+    """
+    cli entry point for instruction creation on book json
+    - default: instruction is created for each scene in book json scene list
+    - provide optional scene range arg to create instructions for only certain range of scenes
+    - "Usage: python instruction_creator.py <input_book.json> <start,end>"
+    """
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument(
+        "book_path",
+        help="path to book json file",
+    )
+    parser.add_argument(
+        "scene_range",
+        nargs="?",
+        type=parse_scene_range,
+        help="optional range as start,end (e.g. 0,10)",
+    )
+    args = parser.parse_args()
+    p = InstructionProcessor(args.book_path)
+    p.run(args.scene_range)
 
-        p = InstructionProcessor(sys.argv[1])
-        p.run(scene_range)
+
+if __name__ == "__main__":
+    main()
