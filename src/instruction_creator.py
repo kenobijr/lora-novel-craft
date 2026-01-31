@@ -5,7 +5,7 @@ import argparse
 from openai import OpenAI
 from dotenv import load_dotenv
 from src.utils import parse_scene_range
-from src.config import get_tokenizer, InstructionConfig, Book
+from src.config import get_tokenizer, InstructionConfig, Book, Scene
 from typing import Tuple
 
 # llm model = openrouter id
@@ -48,6 +48,37 @@ class InstructionCreatorLLM:
         # init stats obj
         # init logger
 
+    def _construct_prompt(self, novel_progress: int) -> str:
+        return f"""
+<system>
+{self.prompt_system}
+</system>
+
+<input_description>
+{self.prompt_input}
+</input_description>
+
+<world_context>
+{self.wc}
+</world_context>
+
+<current_rolling_summary>
+NOVEL PROGRESS: {novel_progress}%
+{scene.running_summary}
+</current_rolling_summary>
+
+<scene_text>
+{scene.text}
+</scene_text>
+
+<instruction>
+{prompt_instruction}
+</instruction>
+"""
+
+    def create_instruction(self, scene: Scene, novel_progress: int):
+        prompt = self._construct_prompt(scene, novel_progress)
+
 
 class InstructionProcessor:
     def __init__(self, book_json_path: str, config=None):
@@ -63,8 +94,16 @@ class InstructionProcessor:
         # logger
 
     def _process_scenes(self, scene_range):
+        len_scenes = len(self.book_content.scenes)
         for i in range(scene_range[0], scene_range[1]):
-            print(self.book_content.scenes[i].scene_id)
+            # print(self.book_content.scenes[i].scene_id)
+            current_scene = self.book_content.scenes[i]
+            # calc novel progress of scene
+            novel_progress = int(((current_scene.scene_id - 1) / len_scenes) * 100)
+            new_instruction = self.llm.create_instruction(
+                self.book_content.scenes[i],
+                novel_progress
+            )
 
     def run(self, scene_range: Tuple[int, int]):
         len_scenes = len(self.book_content.scenes)
