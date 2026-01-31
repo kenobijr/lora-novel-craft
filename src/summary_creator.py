@@ -304,11 +304,11 @@ class SummaryProcessor:
         # save name of book file for logging
         # load book json & map into pydantic obj
         with open(book_json_path, mode="r", encoding="utf-8") as f:
-            self.book_json = Book(**json.load(f))
+            self.book_content = Book(**json.load(f))
         # init llm
         self.llm = SummaryCreatorLLM(
             self.cfg,
-            self.book_json.meta.world_context,
+            self.book_content.meta.world_context,
             self.stats,
             self.logger
         )
@@ -374,7 +374,7 @@ class SummaryProcessor:
         - pydanctic obj -> py dict rep -> str to mirror llm response flow and use same logic
         - distinguish between narrative vs. reference root type
         """
-        first_scene = self.book_json.scenes[0]
+        first_scene = self.book_content.scenes[0]
         # get root narrative or reference summary depending on scene instruction attribute
         is_narrative = True if first_scene.instruction != "special" else False
         root = get_root_summary_narrative() if is_narrative else get_root_summary_reference()
@@ -388,10 +388,10 @@ class SummaryProcessor:
         - (0, 3) processes scenes 0, 1, 2 -> scene 3 not processed, but receives final summary
         - distinguish scene type: narrative vs. reference -> reference instruction value = "special"
         """
-        len_scenes = len(self.book_json.scenes)
+        len_scenes = len(self.book_content.scenes)
         for i in range(scene_range[0], scene_range[1]):
-            current_scene = self.book_json.scenes[i]
-            next_scene = self.book_json.scenes[i+1]
+            current_scene = self.book_content.scenes[i]
+            next_scene = self.book_content.scenes[i+1]
             self.logger.info(f"Starting processing scene id: {current_scene.scene_id}")
             # create flag for scene is narrativ type or reference
             is_narrative = True if current_scene.instruction != "special" else False
@@ -419,13 +419,18 @@ class SummaryProcessor:
             # save new running summary at following scene & save with pydantic json model dump
             next_scene.running_summary = new_running_summary
             with open(self.book_json_path, mode="w", encoding="utf-8") as f:
-                json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+                json.dump(
+                    self.book_content.model_dump(mode="json"),
+                    f,
+                    indent=2,
+                    ensure_ascii=False
+                )
             self.logger.info(f"Summary saved to scene id: {next_scene.scene_id}")
             self.logger.info("---------------------------------------------")
 
     def _create_report(self) -> None:
         """ print report with stats collected during processing & config params """
-        total_scenes = len(self.book_json.scenes)
+        total_scenes = len(self.book_content.scenes)
         s = self.stats
         self.logger.info(f"Summaries created: {s.created} of {total_scenes}")
         self.logger.info(f"Compressed: {s.compressed} in {s.compress_runs} runs")
@@ -455,7 +460,7 @@ class SummaryProcessor:
         - validate scene range if user-provided, otherwise construct default to do all scenes
         - if scene processing starts with 1st scene, root summary must be inserted
         """
-        len_scenes = len(self.book_json.scenes)
+        len_scenes = len(self.book_content.scenes)
         # default: set scene range to process all scenes from start to end
         if scene_range is None:
             scene_range = (0, len_scenes - 1)
@@ -467,7 +472,7 @@ class SummaryProcessor:
                 raise ValueError(f"end must be <= {len_scenes - 1}")
             if scene_range[0] >= scene_range[1]:
                 raise ValueError("start must be < end")
-        self.logger.info(f"Starting process book: {self.book_json.meta.title} ...")
+        self.logger.info(f"Starting process book: {self.book_content.meta.title} ...")
         # check if roots summary needs to be inserted at 1st scene
         if scene_range[0] == 0:
             self.logger.info("Setting root summary at 1st scene manually ...")
