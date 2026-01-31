@@ -82,7 +82,7 @@ class SummaryCreatorLLM:
         # init logger
         self.logger = logger
 
-    def _construct_prompt_summary(
+    def _construct_prompt_create(
             self,
             scene: Scene,
             novel_progress: int,
@@ -235,7 +235,7 @@ Cut repetition and scene logistics first.
         - if response > max words, do max. 2 trimming llm calls with adapted prompt
         - 1x retry loop with exception control flow for invalid json format response (gemini glitch)
         """
-        prompt = self._construct_prompt_summary(scene, novel_progress, is_narrative)
+        prompt = self._construct_prompt_create(scene, novel_progress, is_narrative)
         for attempt in range(2):
             # log full prompt to logfile before llm query
             self.logger.debug(
