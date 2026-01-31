@@ -1,5 +1,5 @@
 - World context describing the book's setting, tone, and characters
-- Current rolling summary containing:
+- Current Running Summary containing:
   - NOVEL PROGRESS: [XX%] — position in overall narrative
   - ## SCENE END STATE: ...
   - ## EMOTIONAL BEAT: ...

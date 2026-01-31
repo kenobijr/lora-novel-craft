@@ -5,7 +5,7 @@
 - Tech Stack: Python, Pytorch, Hugging Face Transformers, ...
 - Core modules will be data-prep, train, inference
 - Narrative is split up into "Semantic Scenes" chunks
-- World Context & Rolling Summaries are used to ensure narrative cohesion (Recursive Reprompting)
+- World Context & Running Summaries are used to ensure narrative cohesion (Recursive Reprompting)
 
 ---
 
@@ -100,12 +100,12 @@
 - Relevant special content like Vocab / Foreword / ... is split into scenes manually
 - Such scenes are prepended to the Narrative Semantic Scenes and flagged
 
-#### Stage 6: Create Rolling Summaries (Semantic Scenes specific)
-- Compress states of narrative into Rolling Summaries (like LSTM but in natural language) along Semantic Scenes as timesteps
-- Each Semantic Scene's Rolling Summary attribute contains the compressed Narrative: **what happened so far up to this specific Semantic Scene?**
+#### Stage 6: Create Running Summaries (Semantic Scenes specific)
+- Compress states of narrative into Running Summaries (like LSTM but in natural language) along Semantic Scenes as timesteps
+- Each Semantic Scene's Running Summary attribute contains the compressed Narrative: **what happened so far up to this specific Semantic Scene?**
 - Running Summary must not be greater than 400 tokens
 ##### 6.1 Structure / Content
-Each Rolling Summary is clustered into 2 logically separate categories / 8 attributes with separate token / word restraints:
+Each Running Summary is clustered into 2 logically separate categories / 8 attributes with separate token / word restraints:
 - **LOCAL MOMENTUM**| Last scene / Labels / Mood / Suspense | max 60 words combined:
   - scene_end_state: | MAX 25 words
   - emotional_beat: | MAX 15 words
