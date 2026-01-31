@@ -387,7 +387,7 @@ class SummaryProcessor:
         - scene 1: 0% (nothing written yet)
         - scene N: (N-1)/total (scenes 1..N-1 are done)
         """
-        total = self.book_json.meta.total_scenes
+        total = len(self.book_json.scenes)
         return int(((scene_id - 1) / total) * 100)
 
     def _process_scenes(self, scene_range: Tuple):
@@ -413,7 +413,7 @@ class SummaryProcessor:
                     is_narrative,
                 )
             except Exception:
-                self.logger.exception(f"Failed processing scene {self.book_json.scenes[i].scene_id}")
+                self.logger.exception(f"Failed process scene {self.book_json.scenes[i].scene_id}")
                 raise
             # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
@@ -433,7 +433,7 @@ class SummaryProcessor:
 
     def _create_report(self) -> None:
         """ print report with stats collected during processing & config params """
-        total_scenes = self.book_json.meta.total_scenes
+        total_scenes = len(self.book_json.scenes)
         s = self.stats
         self.logger.info(f"Summaries created: {s.created} of {total_scenes}")
         self.logger.info(f"Compressed: {s.compressed} in {s.compress_runs} runs")
@@ -463,7 +463,7 @@ class SummaryProcessor:
         - validate scene range if user-provided, otherwise construct default to do all scenes
         - if scene processing starts with 1st scene, root summary must be inserted
         """
-        len_scenes = self.book_json.meta.total_scenes
+        len_scenes = len(self.book_json.scenes)
         # default: set scene range to process all scenes from start to end
         if scene_range is None:
             scene_range = (0, len_scenes - 1)
