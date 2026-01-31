@@ -48,7 +48,7 @@ class InstructionCreatorLLM:
         # init stats obj
         # init logger
 
-    def _construct_prompt(self, novel_progress: int) -> str:
+    def _construct_prompt(self, scene: Scene, novel_progress: int) -> str:
         return f"""
 <system>
 {self.prompt_system}
@@ -62,17 +62,21 @@ class InstructionCreatorLLM:
 {self.wc}
 </world_context>
 
-<current_rolling_summary>
+<current_running_summary>
 NOVEL PROGRESS: {novel_progress}%
 {scene.running_summary}
-</current_rolling_summary>
+</current_running_summary>
+
+<author_ai_persona>
+{self.inference_systemmessage}
+</author_ai_persona>
 
 <scene_text>
 {scene.text}
 </scene_text>
 
 <instruction>
-{prompt_instruction}
+{self.prompt_instruction}
 </instruction>
 """
 
@@ -101,7 +105,7 @@ class InstructionProcessor:
             # calc novel progress of scene
             novel_progress = int(((current_scene.scene_id - 1) / len_scenes) * 100)
             new_instruction = self.llm.create_instruction(
-                self.book_content.scenes[i],
+                current_scene,
                 novel_progress
             )
 
