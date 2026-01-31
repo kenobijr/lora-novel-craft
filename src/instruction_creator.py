@@ -5,7 +5,7 @@ import argparse
 from openai import OpenAI
 from dotenv import load_dotenv
 from src.utils import parse_scene_range
-from src.config import get_tokenizer, InstructionConfig, Book, Scene
+from src.config import get_tokenizer, InstructionConfig, Book, Scene, SceneInstruction
 from typing import Tuple
 
 # llm model = openrouter id
@@ -82,6 +82,63 @@ NOVEL PROGRESS: {novel_progress}%
 
     def create_instruction(self, scene: Scene, novel_progress: int):
         prompt = self._construct_prompt(scene, novel_progress)
+        for attempt in range(2):
+            # log full prompt to logfile before llm query
+            # self.logger.debug(
+            #     f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
+            #     f"{prompt}\n"
+            #     f"=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT END ==="
+            # )
+            response = self.client.chat.completions.create(
+                model=LLM,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "scene_instruction",
+                        "strict": True,
+                        "schema": SceneInstruction.model_json_schema()
+                    }
+                },
+                # # only needed for qwen3!!!
+                # extra_body={
+                #     "provider": {
+                #         "only": ["DeepInfra"]
+                #     }
+                # }
+            )
+            # grab content in raw json for logging
+            result_content = response.choices[0].message.content
+            # log llm response before parsing / formatting
+            # self.logger.debug(
+            #     f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE START ===\n"
+            #     f"{result_content}\n"
+            #     f"=== SUMMARY CREATION: SCENE {scene.scene_id} RESPONSE END ==="
+            # )
+            # catch json deserialize error
+            try:
+                # parse into python dict rep & count words
+                result = json.loads(result_content)
+                break
+            # at this certain error try 1x again with same prompt & log warning; next time: crash it
+            except json.JSONDecodeError as e:
+                if attempt == 0:
+                    # self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
+                    continue
+                raise
+        # # count words from LLM response (dict values) & update stats / logs
+        # total_words = sum(len(str(v).split()) for v in result.values())
+        # self.logger.info(f"Summary: LLM response amount words: {total_words}")
+        # self.stats.created += 1
+        # # if llm response not in total words constraint + buffer, compress it
+        # if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
+        #     self.stats.compressed += 1
+        #     result = self._compress_summary(scene, prompt, result, total_words)
+        # # count words final response (compressed or not) to save at stats word counter
+        # self.stats.total_words += sum(len(str(v).split()) for v in result.values())
+        # finally return result in any case
+        return result
 
 
 class InstructionProcessor:
@@ -108,6 +165,8 @@ class InstructionProcessor:
                 current_scene,
                 novel_progress
             )
+            print(new_instruction)
+            break
 
     def run(self, scene_range: Tuple[int, int]):
         len_scenes = len(self.book_content.scenes)
