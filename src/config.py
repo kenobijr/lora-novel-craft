@@ -2,9 +2,19 @@
 Store config data for all data_prep files centrally
 """
 
+import os
+from dotenv import load_dotenv
 from transformers import AutoTokenizer
 from pydantic import BaseModel
 from typing import List, Optional
+
+# ------------------ GLOBALS ------------------
+
+load_dotenv()
+
+API_KEY = os.getenv("OPEN_ROUTER_KEY")
+if not API_KEY:
+    raise ValueError("OPEN_ROUTER_KEY not found in environment")
 
 # ------------------ BOOK / SCENE CREATION LOGIC ------------------
 
@@ -144,7 +154,5 @@ class SceneInstruction(BaseModel):
     emotional_beat: str  # The dominant emotion of the scene
     constraints: str  # Location, time pressure, secrets in play, physical limitations
 
-
-# ------------------ TOKENIZER ------------------
 
 TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")

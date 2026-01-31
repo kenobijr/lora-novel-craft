@@ -1,10 +1,8 @@
-import os
 import json
 import argparse
 from openai import OpenAI
-from dotenv import load_dotenv
 from src.utils import parse_scene_range
-from src.config import TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction
+from src.config import API_KEY, TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction
 from typing import Tuple
 
 # llm model = openrouter id
@@ -12,12 +10,6 @@ LLM = "google/gemini-2.0-flash-lite-001"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
-
-# load api key
-load_dotenv()
-api_key = os.getenv("OPEN_ROUTER_KEY")
-if not api_key:
-    raise ValueError("could not load API key...")
 
 
 class InstructionCreatorLLM:
@@ -35,7 +27,7 @@ class InstructionCreatorLLM:
         with open(self.cfg.inference_systemmessage, mode="r", encoding="utf-8") as f:
             self.inference_systemmessage = f.read()
         self.client = OpenAI(
-            api_key=api_key,
+            api_key=API_KEY,
             base_url=self.cfg.api_base_url,
             max_retries=self.cfg.api_max_retries,
         )

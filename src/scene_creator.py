@@ -15,9 +15,8 @@ import os
 import re
 import json
 import argparse
-from src.config import TOKENIZER, SceneConfig, Book, Scene, ScenePartitioning
+from src.config import API_KEY, TOKENIZER, SceneConfig, Book, Scene, ScenePartitioning
 from datetime import datetime
-from dotenv import load_dotenv
 from openai import OpenAI
 from typing import List, Tuple, Dict
 
@@ -26,12 +25,6 @@ LLM = "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
-
-# load api key
-load_dotenv()
-api_key = os.getenv("OPEN_ROUTER_KEY")
-if not api_key:
-    raise ValueError("could not load API key...")
 
 
 class SceneSplitterLLM:
@@ -55,7 +48,7 @@ class SceneSplitterLLM:
         # init llm
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
+            api_key=API_KEY,
             max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
         )
 

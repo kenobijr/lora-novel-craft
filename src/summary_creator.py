@@ -24,27 +24,19 @@ from src.utils import parse_scene_range
 import json
 import os
 from src.config import (
-    Book, Scene, TOKENIZER, SummaryConfig, RunningSummary, SummaryStats,
+    API_KEY, Book, Scene, TOKENIZER, SummaryConfig, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
-from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Tuple
 import logging
 from datetime import datetime
-
 
 # llm model = openrouter id
 LLM = "google/gemini-2.0-flash-lite-001"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
-
-# load api key
-load_dotenv()
-api_key = os.getenv("OPEN_ROUTER_KEY")
-if not api_key:
-    raise ValueError("could not load API key...")
 
 
 class SummaryCreatorLLM:
@@ -69,7 +61,7 @@ class SummaryCreatorLLM:
             self.prompt_instruction_ref = f.read()
         self.client = OpenAI(
             base_url=self.cfg.api_base_url,
-            api_key=api_key,
+            api_key=API_KEY,
             max_retries=self.cfg.api_max_retries
         )
         # stats obj to track progress
