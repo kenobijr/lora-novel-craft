@@ -24,7 +24,7 @@ from src.utils import parse_scene_range
 import json
 import os
 from src.config import (
-    Book, Scene, get_tokenizer, SummaryConfig, RunningSummary, Stats,
+    Book, Scene, get_tokenizer, SummaryConfig, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
 from dotenv import load_dotenv
@@ -57,7 +57,7 @@ class SummaryCreatorLLM:
         self,
         config: SummaryConfig,
         world_context: str,
-        stats: Stats,
+        stats: SummaryStats,
         logger: logging.Logger
     ):
         self.cfg = config
@@ -305,10 +305,6 @@ class SummaryProcessor:
         # load book json & map into pydantic obj
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_json = Book(**json.load(f))
-        # track stats for summary creation ops
-        self.stats = Stats()
-        # init logger
-        self.logger = self._init_logger()
         # init llm
         self.llm = SummaryCreatorLLM(
             self.cfg,
@@ -316,6 +312,10 @@ class SummaryProcessor:
             self.stats,
             self.logger
         )
+        # track stats for summary creation ops
+        self.stats = SummaryStats()
+        # init logger
+        self.logger = self._init_logger()
 
     def _init_logger(self) -> logging.Logger:
         """ setup logging for module with params from config.py """

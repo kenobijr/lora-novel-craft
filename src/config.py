@@ -73,7 +73,7 @@ class SummaryConfig(BaseModel):
     api_max_retries: int = 3
 
 
-class Stats(BaseModel):
+class SummaryStats(BaseModel):
     """ track stats through the process to create final report at end """
     created: int = 0
     compressed: int = 0
@@ -128,6 +128,14 @@ def get_root_summary_reference() -> RunningSummary:
 
 class InstructionConfig(BaseModel):
     max_words: int = 80
+    # prompts to use for create instruction llm calls
+    prompt_system: str = "./prompts/instruction_creation/systemmessage.md"
+    prompt_input_format: str = "./prompts/instruction_creation/input_format.md"
+    prompt_instruction: str = "./prompts/instruction_creation/instruction.md"
+    # inference systemmessage to be added as metadata to llm calls
+    inference_systemmessage: str = "./prompts/inference/systemmessage.md"
+    api_base_url: str = "https://openrouter.ai/api/v1"
+    api_max_retries: int = 3
 
 
 class SceneInstruction(BaseModel):
