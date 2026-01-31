@@ -382,40 +382,31 @@ class SummaryProcessor:
         # safe at 1st scene
         first_scene.running_summary = root
 
-    def _calc_novel_progress(self, scene_id: int) -> int:
-        """
-        calculate narrative progress percentage.
-        progress represents "story completed so far" - the state BEFORE this scene.
-        - scene 1: 0% (nothing written yet)
-        - scene N: (N-1)/total (scenes 1..N-1 are done)
-        """
-        total = len(self.book_json.scenes)
-        return int(((scene_id - 1) / total) * 100)
-
     def _process_scenes(self, scene_range: Tuple):
         """
         - loop through specified scenes range to create running summary for each
-        - range uses python semantics: start inclusive, end exclusive
-        - e.g. (0, 3) processes scenes 0, 1, 2 -> scene 3 receives final summary
+        - (0, 3) processes scenes 0, 1, 2 -> scene 3 not processed, but receives final summary
         - distinguish scene type: narrative vs. reference -> reference instruction value = "special"
         """
-        # python-style range: use directly, no -1 needed
+        len_scenes = len(self.book_json.scenes)
         for i in range(scene_range[0], scene_range[1]):
-            self.logger.info(f"Starting processing scene id: {self.book_json.scenes[i].scene_id}")
+            current_scene = self.book_json.scenes[i]
+            next_scene = self.book_json.scenes[i+1]
+            self.logger.info(f"Starting processing scene id: {current_scene.scene_id}")
             # create flag for scene is narrativ type or reference
-            is_narrative = True if self.book_json.scenes[i].instruction != "special" else False
+            is_narrative = True if current_scene.instruction != "special" else False
             # calc novel progress of scene
-            novel_progress = self._calc_novel_progress(self.book_json.scenes[i].scene_id)
+            novel_progress = int(((current_scene.scene_id - 1) / len_scenes) * 100)
             self.logger.info("Query LLM ...")
             # get updated rolling summary from llm & format it for saving at scene obj
             try:
                 new_running_summary = self.llm.create_summary(
-                    self.book_json.scenes[i],
+                    current_scene,
                     novel_progress,
                     is_narrative,
                 )
             except Exception:
-                self.logger.exception(f"Failed process scene {self.book_json.scenes[i].scene_id}")
+                self.logger.exception(f"Failed process scene {current_scene.scene_id}")
                 raise
             # bring dict response into target .md format to save at json scene
             new_running_summary = self._format_running_summary(new_running_summary)
@@ -425,12 +416,11 @@ class SummaryProcessor:
             self.stats.total_tokens += amount_tokens
             if amount_tokens > self.cfg.max_tokens:
                 self.stats.too_large += 1
-            # save new running summary at following scene
-            self.book_json.scenes[i+1].running_summary = new_running_summary
-            # use pydantic json model dump method to write obj into json
+            # save new running summary at following scene & save with pydantic json model dump
+            next_scene.running_summary = new_running_summary
             with open(self.book_json_path, mode="w", encoding="utf-8") as f:
                 json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
-            self.logger.info(f"Summary saved to scene id: {self.book_json.scenes[i+1].scene_id}")
+            self.logger.info(f"Summary saved to scene id: {next_scene.scene_id}")
             self.logger.info("---------------------------------------------")
 
     def _create_report(self) -> None:
