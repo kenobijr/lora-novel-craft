@@ -252,7 +252,7 @@ class BookProcessor:
             for scene in atomic_scenes:
                 tok_current = len(TOKENIZER.encode(scene))
                 # if running scene, together with current scene, under threshold -> add up
-                if token_counter + tok_current <= self.cfg.max_scene_size:
+                if token_counter + tok_current <= self.cfg.max_tokens:
                     running_scene += ("\n\n" + scene) if running_scene else scene
                     token_counter += tok_current
                 # otherwise finalise & reset running scene & counter; add current scene after it

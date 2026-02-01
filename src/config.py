@@ -24,7 +24,7 @@ TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
 class SceneConfig(BaseModel):
     """ scene creation config params """
     operation_name: str = "semantic_scene"
-    max_scene_size: int = 3000
+    max_tokens: int = 3000
     min_paragraph_size: int = 75
     prompt_system: str = "./prompts/scene_creation/systemmessage.md"
     prompt_input_format: str = "./prompts/scene_creation/input_format.md"
