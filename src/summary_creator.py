@@ -40,8 +40,8 @@ class SummaryCreatorLLM:
         self,
         config: SummaryConfig,
         world_context: str,
+        logger: logging.Logger,
         stats: SummaryStats,
-        logger: logging.Logger
     ):
         self.cfg = config
         # world context from book json needed for each llm call
@@ -60,10 +60,10 @@ class SummaryCreatorLLM:
             api_key=API_KEY,
             max_retries=self.cfg.api_max_retries
         )
-        # stats obj to track progress
-        self.stats = stats
         # init logger
         self.logger = logger
+        # stats obj to track progress
+        self.stats = stats
 
     def _construct_prompt_create(
             self,
@@ -296,8 +296,8 @@ class SummaryProcessor:
         self.llm = SummaryCreatorLLM(
             self.cfg,
             self.book_content.meta.world_context,
+            self.logger,
             self.stats,
-            self.logger
         )
 
     @staticmethod
