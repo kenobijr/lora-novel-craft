@@ -5,7 +5,7 @@ from src.utils import parse_scene_range, init_logger
 from src.config import (
     API_KEY, TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
 )
-from typing import Tuple
+from typing import Tuple, Dict
 import logging
 
 # llm model = openrouter id
@@ -124,7 +124,7 @@ NOVEL PROGRESS: {novel_progress}%
                 raise
         # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
-        self.logger.info(f"Summary: LLM response amount words: {total_words}")
+        self.logger.info(f"Instruction: LLM response amount words: {total_words}")
         self.stats.created += 1
         # # if llm response not in total words constraint + buffer, compress it
         # if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
@@ -151,6 +151,19 @@ class InstructionProcessor:
             self.stats,
         )
 
+    @staticmethod
+    def _format_instruction(response: Dict) -> str:
+        """
+        - take instruction as python dict and map into target .md styled str format
+        - stay in sync to ## .md format of earlier generated content: scenes, world_context
+        """
+        lines = ["# Instruction\n"]
+        for key, value in response.items():
+            # transform snake_case key to markdown header: scene_goal -> ## SCENE GOAL
+            header = "## " + key.upper().replace("_", " ")
+            lines.append(f"{header}: {value}")
+        return "\n".join(lines)
+
     def _process_scenes(self, scene_range):
         len_scenes = len(self.book_content.scenes)
         for i in range(scene_range[0], scene_range[1]):
@@ -159,15 +172,17 @@ class InstructionProcessor:
             # calc novel progress of scene
             novel_progress = int(((current_scene.scene_id - 1) / len_scenes) * 100)
             self.logger.info("Query LLM ...")
-            new_instruction = self.llm.create_instruction(
-                current_scene,
-                novel_progress
-            )
+            try:
+                new_instruction = self.llm.create_instruction(
+                    current_scene,
+                    novel_progress
+                )
+            except Exception:
+                self.logger.exception(f"Failed process scene {current_scene.scene_id}")
+                raise
             # bring dict response into target .md format to save at json scene
-            
-            
-            
-            
+            new_instruction = self._format_instruction(new_instruction)
+
             break
 
     def run(self, scene_range: Tuple[int, int]):
