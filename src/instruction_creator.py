@@ -194,6 +194,7 @@ class InstructionProcessor:
             amount_tokens = len(TOKENIZER.encode(new_instruction))
             self.logger.info(f"Total amount tokens: {amount_tokens}")
             self.stats.total_tokens += amount_tokens
+            # if tokens greater than boundary just log
             if amount_tokens > self.cfg.max_tokens:
                 self.stats.too_large += 1
             current_scene.instruction = new_instruction
