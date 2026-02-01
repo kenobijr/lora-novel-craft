@@ -9,7 +9,7 @@ from typing import Tuple, Dict
 import logging
 
 # llm model = openrouter id
-LLM = "qwen/qwen-2.5-72b-instruct"
+LLM = "google/gemini-2.0-flash-lite-001"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
@@ -96,12 +96,12 @@ NOVEL PROGRESS: {novel_progress}%
                         "schema": SceneInstruction.model_json_schema()
                     }
                 },
-                # only needed for qwen3!!!
-                extra_body={
-                    "provider": {
-                        "only": ["DeepInfra"]
-                    }
-                }
+                # # only needed for qwen3!!!
+                # extra_body={
+                #     "provider": {
+                #         "only": ["DeepInfra"]
+                #     }
+                # }
             )
             # grab content in raw json for logging
             result_content = response.choices[0].message.content
@@ -126,13 +126,7 @@ NOVEL PROGRESS: {novel_progress}%
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"Instruction: LLM response amount words: {total_words}")
         self.stats.created += 1
-        # # if llm response not in total words constraint + buffer, compress it
-        # if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
-        #     self.stats.compressed += 1
-        #     result = self._compress_summary(scene, prompt, result, total_words)
-        # # count words final response (compressed or not) to save at stats word counter
         self.stats.total_words += sum(len(str(v).split()) for v in result.values())
-        # finally return result in any case
         return result
 
 
@@ -159,7 +153,6 @@ class InstructionProcessor:
         """
         lines = ["# Instruction\n"]
         for key, value in response.items():
-            # transform snake_case key to markdown header: scene_goal -> ## SCENE GOAL
             header = "## " + key.upper().replace("_", " ")
             lines.append(f"{header}: {value}")
         return "\n".join(lines)
@@ -170,26 +163,16 @@ class InstructionProcessor:
         s = self.stats
         op_label = self.cfg.operation_name.replace("_", " ").title()
         self.logger.info(f"{op_label} created: {s.created} of {total_scenes}")
-        # self.logger.info(f"Compressed: {s.compressed} in {s.compress_runs} runs")
         self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s.too_large}")
-        # calc shares with division by zero guard
         if s.created > 0:
-            # pct = int((s.compressed / s.created) * 100)
-            # self.logger.info(f"Share needing compression: {pct}%")
             pct = int((s.too_large / s.created) * 100)
             self.logger.info(f"Share too large: {pct}%")
             words_avg = s.total_words / s.created
             tokens_avg = s.total_tokens / s.created
             self.logger.info(f"Avg per {op_label}: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
-        # if s.compressed > 0:
-        #     pct = int((s.compressed_successfully / s.compressed) * 100)
-        #     self.logger.info(f"Share compression successful: {pct}%")
-        # print relevant params used for this ops
         self.logger.info("---------------------------------------------")
         self.logger.info(f"Max tokens: {self.cfg.max_tokens}")
         self.logger.info(f"Max words: {self.cfg.max_words}")
-        # self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
-        # self.logger.info(f"Max compress attempts: {self.cfg.max_compress_attempts}")
         self.logger.info("---------------------------------------------")
 
     def _process_scenes(self, scene_range: Tuple[int, int]) -> None:
@@ -239,7 +222,6 @@ class InstructionProcessor:
         self.logger.info(f"Processing scenes: start {scene_range[0]} - end {scene_range[1]}...")
         self.logger.info("---------------------------------------------")
         self._process_scenes(scene_range)
-        # create closing report
         self.logger.info("---------------------------------------------")
         self._create_report()
         self.logger.info("Operation finished")
