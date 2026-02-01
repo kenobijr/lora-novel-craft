@@ -19,6 +19,7 @@ Process:
 
 import argparse
 import json
+import os
 from src.config import (
     API_KEY, Book, Scene, TOKENIZER, SummaryConfig, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
@@ -289,7 +290,8 @@ class SummaryProcessor:
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
         # setup logfile & init logger with it
-        self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, self.book_json_path)
+        book_name = os.path.basename(book_json_path).removesuffix(".json")
+        self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
         # track stats for report creation at end
         self.stats = SummaryStats()
         # init llm

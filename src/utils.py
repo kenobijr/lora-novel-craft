@@ -17,14 +17,14 @@ def parse_scene_range(value: str) -> tuple[int, int]:
         raise argparse.ArgumentTypeError(f"must be start,end format (e.g. 0,10), got: {value}")
 
 
-def init_logger(operation_type: str, debug_dir: str, book_json_path: str) -> logging.Logger:
+def init_logger(operation_type: str, debug_dir: str, book_name: str) -> logging.Logger:
     """
     - setup logging for modules with params from config.py -> handler for console and logfile
     - create dir for logfile if necessary; construct file path
+    - book_name caller must provide the name/prefix for the log file - no path, no suffix!
     """
     os.makedirs(debug_dir, exist_ok=True)
     ts = datetime.now().strftime("%H%M%S")
-    book_name = os.path.basename(book_json_path).removesuffix(".json")
     logfile_path = os.path.join(debug_dir, f"{book_name}_{operation_type}_{ts}.log")
     # setup logger
     logger = logging.getLogger(operation_type)

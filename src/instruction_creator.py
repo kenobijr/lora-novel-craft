@@ -1,5 +1,6 @@
 import json
 import argparse
+import os
 from openai import OpenAI
 from src.utils import parse_scene_range, init_logger
 from src.config import (
@@ -136,7 +137,8 @@ class InstructionProcessor:
         self.book_json_path = book_json_path
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
-        self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, self.book_json_path)
+        book_name = os.path.basename(book_json_path).removesuffix(".json")
+        self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
         self.stats = InstructionStats()
         self.llm = InstructionCreatorLLM(
             self.cfg,
