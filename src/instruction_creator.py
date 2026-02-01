@@ -9,7 +9,7 @@ from typing import Tuple, Dict
 import logging
 
 # llm model = openrouter id
-LLM = "google/gemini-2.0-flash-lite-001"
+LLM = "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
@@ -96,12 +96,12 @@ NOVEL PROGRESS: {novel_progress}%
                         "schema": SceneInstruction.model_json_schema()
                     }
                 },
-                # # only needed for qwen3!!!
-                # extra_body={
-                #     "provider": {
-                #         "only": ["DeepInfra"]
-                #     }
-                # }
+                # only needed for qwen3!!!
+                extra_body={
+                    "provider": {
+                        "only": ["DeepInfra"]
+                    }
+                }
             )
             # grab content in raw json for logging
             result_content = response.choices[0].message.content
@@ -142,7 +142,7 @@ class InstructionProcessor:
         self.book_json_path = book_json_path
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
-        self.logger = init_logger(__name__, self.cfg.debug_dir, self.book_json_path)
+        self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, self.book_json_path)
         self.stats = InstructionStats()
         self.llm = InstructionCreatorLLM(
             self.cfg,
@@ -168,7 +168,8 @@ class InstructionProcessor:
         """ print report with stats collected during processing & config params """
         total_scenes = len(self.book_content.scenes)
         s = self.stats
-        self.logger.info(f"Instructions created: {s.created} of {total_scenes}")
+        op_label = self.cfg.operation_name.replace("_", " ").title()
+        self.logger.info(f"{op_label} created: {s.created} of {total_scenes}")
         # self.logger.info(f"Compressed: {s.compressed} in {s.compress_runs} runs")
         self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s.too_large}")
         # calc shares with division by zero guard
@@ -179,7 +180,7 @@ class InstructionProcessor:
             self.logger.info(f"Share too large: {pct}%")
             words_avg = s.total_words / s.created
             tokens_avg = s.total_tokens / s.created
-            self.logger.info(f"Avg per Instruction: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
+            self.logger.info(f"Avg per {op_label}: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
         # if s.compressed > 0:
         #     pct = int((s.compressed_successfully / s.compressed) * 100)
         #     self.logger.info(f"Share compression successful: {pct}%")

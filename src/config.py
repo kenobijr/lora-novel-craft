@@ -23,6 +23,7 @@ TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
 
 class SceneConfig(BaseModel):
     """ scene creation config params """
+    operation_name: str = "semantic_scene"
     max_scene_size: int = 3000
     min_paragraph_size: int = 75
     prompt_system: str = "./prompts/scene_creation/systemmessage.md"
@@ -72,6 +73,7 @@ class ScenePartitioning(BaseModel):
 
 class SummaryConfig(BaseModel):
     """ running summary creation config params """
+    operation_name: str = "running_summary"
     max_tokens: int = 400  # token range (final formatted str)
     max_words: int = 200  # word range (raw json dict values summed up (no keys / signs / ...)
     max_words_buffer: int = 40  # allowed overshoot for word range
@@ -139,6 +141,7 @@ def get_root_summary_reference() -> RunningSummary:
 
 
 class InstructionConfig(BaseModel):
+    operation_name: str = "instruction_tuning"
     max_tokens: int = 150  # token range (final formatted str)
     max_words: int = 80
     # prompts to use for create instruction llm calls

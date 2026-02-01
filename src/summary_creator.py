@@ -289,7 +289,7 @@ class SummaryProcessor:
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
         # setup logfile & init logger with it
-        self.logger = init_logger(__name__, self.cfg.debug_dir, self.book_json_path)
+        self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, self.book_json_path)
         # track stats for report creation at end
         self.stats = SummaryStats()
         # init llm
@@ -301,13 +301,13 @@ class SummaryProcessor:
         )
 
     @staticmethod
-    def _format_running_summary(summary_dict: Dict) -> str:
+    def _format_running_summary(response: Dict) -> str:
         """
-        - take running summary as python dict rep and map into target .md styled str format
+        - take running summary as python dict and map into target .md styled str format
         - stay in sync to ## .md format of earlier generated content: scenes, world_context
         """
         lines = ["# Running Summary\n"]
-        for key, value in summary_dict.items():
+        for key, value in response.items():
             # transform snake_case key to markdown header: scene_end_state -> ## SCENE END STATE
             header = "## " + key.upper().replace("_", " ")
             lines.append(f"{header}: {value}")
@@ -377,7 +377,8 @@ class SummaryProcessor:
         """ print report with stats collected during processing & config params """
         total_scenes = len(self.book_content.scenes)
         s = self.stats
-        self.logger.info(f"Summaries created: {s.created} of {total_scenes}")
+        op_label = self.cfg.operation_name.replace("_", " ").title()
+        self.logger.info(f"{op_label} created: {s.created} of {total_scenes}")
         self.logger.info(f"Compressed: {s.compressed} in {s.compress_runs} runs")
         self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s.too_large}")
         # calc shares with division by zero guard
@@ -388,7 +389,7 @@ class SummaryProcessor:
             self.logger.info(f"Share too large: {pct}%")
             words_avg = s.total_words / s.created
             tokens_avg = s.total_tokens / s.created
-            self.logger.info(f"Avg per summary: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
+            self.logger.info(f"Avg per {op_label}: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
         if s.compressed > 0:
             pct = int((s.compressed_successfully / s.compressed) * 100)
             self.logger.info(f"Share compression successful: {pct}%")
