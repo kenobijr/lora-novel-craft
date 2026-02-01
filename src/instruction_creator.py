@@ -164,12 +164,38 @@ class InstructionProcessor:
             lines.append(f"{header}: {value}")
         return "\n".join(lines)
 
-    def _process_scenes(self, scene_range):
+    def _create_report(self) -> None:
+        """ print report with stats collected during processing & config params """
+        total_scenes = len(self.book_content.scenes)
+        s = self.stats
+        self.logger.info(f"Instructions created: {s.created} of {total_scenes}")
+        # self.logger.info(f"Compressed: {s.compressed} in {s.compress_runs} runs")
+        self.logger.info(f"Too large (>{self.cfg.max_tokens} tokens): {s.too_large}")
+        # calc shares with division by zero guard
+        if s.created > 0:
+            # pct = int((s.compressed / s.created) * 100)
+            # self.logger.info(f"Share needing compression: {pct}%")
+            pct = int((s.too_large / s.created) * 100)
+            self.logger.info(f"Share too large: {pct}%")
+            words_avg = s.total_words / s.created
+            tokens_avg = s.total_tokens / s.created
+            self.logger.info(f"Avg per Instruction: {words_avg:.1f} words, {tokens_avg:.1f} tokens")
+        # if s.compressed > 0:
+        #     pct = int((s.compressed_successfully / s.compressed) * 100)
+        #     self.logger.info(f"Share compression successful: {pct}%")
+        # print relevant params used for this ops
+        self.logger.info("---------------------------------------------")
+        self.logger.info(f"Max tokens: {self.cfg.max_tokens}")
+        self.logger.info(f"Max words: {self.cfg.max_words}")
+        # self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
+        # self.logger.info(f"Max compress attempts: {self.cfg.max_compress_attempts}")
+        self.logger.info("---------------------------------------------")
+
+    def _process_scenes(self, scene_range: Tuple[int, int]) -> None:
         len_scenes = len(self.book_content.scenes)
         for i in range(scene_range[0], scene_range[1]):
             current_scene = self.book_content.scenes[i]
             self.logger.info(f"Starting processing scene id: {current_scene.scene_id}")
-            # calc novel progress of scene
             novel_progress = int(((current_scene.scene_id - 1) / len_scenes) * 100)
             self.logger.info("Query LLM ...")
             try:
@@ -180,12 +206,24 @@ class InstructionProcessor:
             except Exception:
                 self.logger.exception(f"Failed process scene {current_scene.scene_id}")
                 raise
-            # bring dict response into target .md format to save at json scene
             new_instruction = self._format_instruction(new_instruction)
+            amount_tokens = len(TOKENIZER.encode(new_instruction))
+            self.logger.info(f"Total amount tokens: {amount_tokens}")
+            self.stats.total_tokens += amount_tokens
+            if amount_tokens > self.cfg.max_tokens:
+                self.stats.too_large += 1
+            current_scene.instruction = new_instruction
+            with open(self.book_json_path, mode="w", encoding="utf-8") as f:
+                json.dump(
+                    self.book_content.model_dump(mode="json"),
+                    f,
+                    indent=2,
+                    ensure_ascii=False
+                )
+            self.logger.info(f"Instruction saved to scene id: {current_scene.scene_id}")
+            self.logger.info("---------------------------------------------")
 
-            break
-
-    def run(self, scene_range: Tuple[int, int]):
+    def run(self, scene_range: Tuple[int, int]) -> None:
         len_scenes = len(self.book_content.scenes)
         if scene_range is None:
             scene_range = (0, len_scenes)
@@ -202,7 +240,7 @@ class InstructionProcessor:
         self._process_scenes(scene_range)
         # create closing report
         self.logger.info("---------------------------------------------")
-        # self._create_report()
+        self._create_report()
         self.logger.info("Operation finished")
 
 

@@ -139,6 +139,7 @@ def get_root_summary_reference() -> RunningSummary:
 
 
 class InstructionConfig(BaseModel):
+    max_tokens: int = 150  # token range (final formatted str)
     max_words: int = 80
     # prompts to use for create instruction llm calls
     prompt_system: str = "./prompts/instruction_creation/systemmessage.md"
