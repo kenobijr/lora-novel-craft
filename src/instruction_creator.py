@@ -2,7 +2,9 @@ import json
 import argparse
 from openai import OpenAI
 from src.utils import parse_scene_range, init_logger
-from src.config import API_KEY, TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction
+from src.config import (
+    API_KEY, TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
+)
 from typing import Tuple
 import logging
 
@@ -14,7 +16,13 @@ LLM = "google/gemini-2.0-flash-lite-001"
 
 
 class InstructionCreatorLLM:
-    def __init__(self, config: InstructionConfig, world_context: str, logger: logging.Logger):
+    def __init__(
+        self,
+        config: InstructionConfig,
+        world_context: str,
+        logger: logging.Logger,
+        stats: InstructionStats
+    ):
         self.cfg = config
         self.wc = world_context
         # load prompts to use at llm call
@@ -28,13 +36,12 @@ class InstructionCreatorLLM:
         with open(self.cfg.inference_systemmessage, mode="r", encoding="utf-8") as f:
             self.inference_systemmessage = f.read()
         self.logger = logger
+        self.stats = stats
         self.client = OpenAI(
             api_key=API_KEY,
             base_url=self.cfg.api_base_url,
             max_retries=self.cfg.api_max_retries,
         )
-        # init stats obj
-        # init logger
 
     def _construct_prompt(self, scene: Scene, novel_progress: int) -> str:
         return f"""
@@ -115,16 +122,16 @@ NOVEL PROGRESS: {novel_progress}%
                     self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
                     continue
                 raise
-        # # count words from LLM response (dict values) & update stats / logs
-        # total_words = sum(len(str(v).split()) for v in result.values())
-        # self.logger.info(f"Summary: LLM response amount words: {total_words}")
-        # self.stats.created += 1
+        # count words from LLM response (dict values) & update stats / logs
+        total_words = sum(len(str(v).split()) for v in result.values())
+        self.logger.info(f"Summary: LLM response amount words: {total_words}")
+        self.stats.created += 1
         # # if llm response not in total words constraint + buffer, compress it
         # if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
         #     self.stats.compressed += 1
         #     result = self._compress_summary(scene, prompt, result, total_words)
         # # count words final response (compressed or not) to save at stats word counter
-        # self.stats.total_words += sum(len(str(v).split()) for v in result.values())
+        self.stats.total_words += sum(len(str(v).split()) for v in result.values())
         # finally return result in any case
         return result
 
@@ -136,10 +143,12 @@ class InstructionProcessor:
         with open(book_json_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
         self.logger = init_logger(__name__, self.cfg.debug_dir, self.book_json_path)
+        self.stats = InstructionStats()
         self.llm = InstructionCreatorLLM(
             self.cfg,
             self.book_content.meta.world_context,
-            self.logger
+            self.logger,
+            self.stats,
         )
 
     def _process_scenes(self, scene_range):
@@ -154,8 +163,11 @@ class InstructionProcessor:
                 current_scene,
                 novel_progress
             )
-            print(new_instruction)
             # bring dict response into target .md format to save at json scene
+            
+            
+            
+            
             break
 
     def run(self, scene_range: Tuple[int, int]):

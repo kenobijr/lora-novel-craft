@@ -86,7 +86,7 @@ class SummaryConfig(BaseModel):
 
 
 class SummaryStats(BaseModel):
-    """ track stats through the process to create final report at end """
+    """ track summary creation stats through the process to create final report at end """
     created: int = 0
     compressed: int = 0
     compress_runs: int = 0
@@ -153,9 +153,19 @@ class InstructionConfig(BaseModel):
     debug_dir: str = "./data/debug/instruction_creation"
 
 
+class InstructionStats(BaseModel):
+    """ track instruction creation stats through the process to create final report at end """
+    created: int = 0
+    # compressed: int = 0
+    # compress_runs: int = 0
+    # compressed_successfully: int = 0
+    total_words: int = 0
+    total_tokens: int = 0
+    too_large: int = 0
+
+
 class SceneInstruction(BaseModel):
     scene_goal: str  # Primary event/revelation/decision that must occur
     characters_present: str  # Character 1; Character 2, ....
     emotional_beat: str  # The dominant emotion of the scene
     constraints: str  # Location, time pressure, secrets in play, physical limitations
-
