@@ -13,8 +13,10 @@ from src.config import Book
 def remove_ref_scenes(book_path: str):
     """ take input book json; filter out ref scenes; update scene_ids; write back into json """
     print("started process...")
+    # read in json
     with open(book_path, mode="r", encoding="utf-8") as f:
         book_content = Book(**json.load(f))
+    # print stats before
     print(f"Total amount scenes before: {len(book_content.scenes)}")
     ref_scenes = sum(1 for scene in book_content.scenes if scene.instruction == "special")
     print(f"Total amount ref scenes before: {ref_scenes}")
@@ -23,8 +25,14 @@ def remove_ref_scenes(book_path: str):
     # update scene_id's
     for i, scene in enumerate(book_content.scenes, start=1):
         scene.scene_id = i
+    # update global word counter & scene counter at book meta
+    full_text = " ".join([scene.text for scene in book_content.scenes])
+    book_content.meta.word_count = len(full_text.split())
+    book_content.meta.total_scenes = len(book_content.scenes)
+    # write back to json
     with open(book_path, mode="w", encoding="utf-8") as f:
         json.dump(book_content.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+    # print stats after
     print(f"Total amount scenes after: {len(book_content.scenes)}")
     ref_scenes = sum(1 for scene in book_content.scenes if scene.instruction == "special")
     print(f"Total amount ref scenes after: {ref_scenes}")
