@@ -1,21 +1,14 @@
 """
-Add special reference material as additional scene to json_scenes book file.
+Add special e.g. reference material as additional scenes to json_scenes book file.
 - check against max tok len with tokenizer
 - scene is prepended to scenes list
-arguments:
-- target book json
-- scene_content.md
-- scene_id
 """
 
-import sys
+import argparse
 import json
-from src.config import get_tokenizer, SceneConfig, Book, Scene
+from src.config import TOKENIZER, SceneConfig, Book, Scene
 
-# load tokenizer
-tokenizer = get_tokenizer()
-if not tokenizer:
-    raise ValueError("could not load tokenizer...")
+
 # load cfg
 cfg = SceneConfig()
 
@@ -29,13 +22,12 @@ def add_scene(book_json_path, scene_md_path, scene_id):
     with open(scene_md_path, mode="r", encoding="utf-8") as f:
         scene_text = f.read()
     # calc & check text against max token size
-    tok_amount = len(tokenizer.encode(scene_text))
+    tok_amount = len(TOKENIZER.encode(scene_text))
     assert tok_amount <= cfg.max_scene_size, "Scene text token amount too big..."
     print(f"Read in Reference scene content in valid token amount range: {tok_amount} tokens")
     # map & check scene_id
     scene_id = int(scene_id)
     assert scene_id > 0, "Valid scene_id > 0 needed for scene adding..."
-    # build pydantic scene obj; omit setting "running_summary", which gets default None then
     new_scene = Scene(
         scene_id=scene_id,
         # reference content: chapter idx always 0, since prepended before narrative content
@@ -45,6 +37,7 @@ def add_scene(book_json_path, scene_md_path, scene_id):
         # reference content: instruction at this step set "special", to differentiate from None
         instruction="special",
         text=scene_text,
+        running_summary=None,
     )
     print(f"Len scenes before adding: {len(book_content.scenes)}")
     # prepend scene to book json scenes list at 1st pos
@@ -56,8 +49,28 @@ def add_scene(book_json_path, scene_md_path, scene_id):
     print(f"Operation completed successfully. File updated: {book_json_path}")
 
 
+def main():
+    """
+    cli entry point to add scenes manual at specified spot to existing book json file
+    - usage: <target_book.json> <scene_content.md> <scene_id>
+    - scene_id attribute the added scene will get in scenes list - check other scenes id's!
+    """
+    parser = argparse.ArgumentParser(description=__name__)
+    parser.add_argument(
+        "book_path",
+        help="path to book .json",
+    )
+    parser.add_argument(
+        "scene_content",
+        help="path to scene content .md"
+    )
+    parser.add_argument(
+        "scene_id",
+        help="scene_id attribute for new scene"
+    )
+    args = parser.parse_args()
+    add_scene(args.book_path, args.scene_content, args.scene_id)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: <target_book.json> <scene_content.md> <scene_id>")
-    else:
-        add_scene(sys.argv[1], sys.argv[2], sys.argv[3])
+    main()
