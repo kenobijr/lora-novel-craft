@@ -44,7 +44,7 @@ class BookMeta(BaseModel):
 
 
 class Scene(BaseModel):
-    scene_id: int
+    scene_id: int = 0
     chapter_index: int
     chapter_title: Optional[str] = None
     instruction: Optional[str] = None

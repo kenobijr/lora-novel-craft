@@ -283,30 +283,27 @@ class BookProcessor:
     def _save_scenes(self, scenes: List[Tuple[str, str, List]]) -> List:
         """
         - loop through chapter tuples & create consecutive scenes with text & chapter meta data
-        - use total scenes from book json metadata to create scene ids and update it
         - create scene objects for each scene in pydantic specified format
         - save scene objects to self.book_json every iteration
         - write to target file one time after loop
         """
         for chapter_tpl in scenes:
-            # get global book scene counter
-            global_scene_counter = self.book_json.meta.total_scenes
-            for scene_number, scene_content in enumerate(chapter_tpl[2], start=1):
-                # scene attributes instruction & running_summary via defaults for now
+            for scene_content in chapter_tpl[2]:
+                # scene attributes instruction, running_summary, scene_id via defaults for now
                 new_scene = Scene(
-                    # scene_id equals global scene counter + scene number
-                    scene_id=global_scene_counter + scene_number,
                     chapter_index=chapter_tpl[0],
                     # pass chapter_title if available at scene (book) as txt, otherwise None
                     chapter_title=chapter_tpl[1],
                     text=scene_content
                 )
                 self.book_json.scenes.append(new_scene)
-            # update global scene counter with all scenes of a chapter
-            self.book_json.meta.total_scenes += len(chapter_tpl[2])
-        # update global word counter
+        # numerate scene_id's
+        for i, scene in enumerate(self.book_json.scenes, start=1):
+            scene.scene_id = i
+        # update global word counter & scene counter at book meta
         full_text = " ".join([scene.text for scene in self.book_json.scenes])
         self.book_json.meta.word_count = len(full_text.split())
+        self.book_json.meta.total_scenes = len(self.book_json.scenes)
         # use pydantic json model dump method to write obj into json
         with open(self.book_json_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
