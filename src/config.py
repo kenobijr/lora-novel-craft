@@ -18,19 +18,13 @@ if not API_KEY:
 
 TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
 
-# ------------------ BOOK / SCENE CREATION LOGIC ------------------
+# ------------------ BOOK CREATION LOGIC ------------------
 
 
-class SceneConfig(BaseModel):
-    """ scene creation config params """
-    operation_name: str = "semantic_scene"
-    max_tokens: int = 3000
-    min_paragraph_size: int = 75
-    prompt_system: str = "./prompts/scene_creation/systemmessage.md"
-    prompt_input_format: str = "./prompts/scene_creation/input_format.md"
-    prompt_instruction: str = "./prompts/scene_creation/instruction.md"
-    debug_mode: bool = True
-    debug_dir: str = "./data/debug/scene_creation"
+class BookConfig(BaseModel):
+    operation_name: str = "book_creation"
+    output_dir: str = "./data/json"
+    debug_dir: str = "./data/debug/book_creation"
 
 
 class BookMeta(BaseModel):
@@ -54,7 +48,22 @@ class Scene(BaseModel):
 
 class Book(BaseModel):
     meta: BookMeta
-    scenes: List[Scene]
+    chapters: List[str] = []  # intermediate state
+    scenes: List[Scene] = []
+
+# ------------------ SCENE CREATION LOGIC ------------------
+
+
+class SceneConfig(BaseModel):
+    """ scene creation config params """
+    operation_name: str = "semantic_scene"
+    max_tokens: int = 3000
+    min_paragraph_size: int = 75
+    prompt_system: str = "./prompts/scene_creation/systemmessage.md"
+    prompt_input_format: str = "./prompts/scene_creation/input_format.md"
+    prompt_instruction: str = "./prompts/scene_creation/instruction.md"
+    debug_mode: bool = True
+    debug_dir: str = "./data/debug/scene_creation"
 
 
 # scene splitting llm response format
