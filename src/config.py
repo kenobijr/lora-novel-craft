@@ -77,14 +77,16 @@ class SummaryConfig(BaseModel):
     max_tokens: int = 400  # token range (final formatted str)
     max_words: int = 200  # word range (raw json dict values summed up (no keys / signs / ...)
     max_words_buffer: int = 40  # allowed overshoot for word range
-    max_compress_attempts: int = 3
     prompt_system: str = "./prompts/summary_creation/systemmessage.md"
     prompt_input_format: str = "./prompts/summary_creation/input_format.md"
     prompt_instruction_narrative: str = "./prompts/summary_creation/instruction_narrative.md"
     prompt_instruction_reference: str = "./prompts/summary_creation/instruction_reference.md"
     debug_dir: str = "./data/debug/summary_creation"
+    # api / llm
+    max_compress_attempts: int = 3
+    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
     api_base_url: str = "https://openrouter.ai/api/v1"
-    api_max_retries: int = 3
+    api_max_retries: int = 3  # # openai sdk param
 
 
 class SummaryStats(BaseModel):
@@ -152,7 +154,8 @@ class InstructionConfig(BaseModel):
     inference_systemmessage: str = "./prompts/inference/systemmessage.md"
     # url
     api_base_url: str = "https://openrouter.ai/api/v1"
-    api_max_retries: int = 3
+    api_max_retries: int = 3  # openai sdk param
+    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
     # debug
     debug_dir: str = "./data/debug/instruction_creation"
 

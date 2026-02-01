@@ -150,7 +150,7 @@ Cut repetition and scene logistics first.
         # max x runs to get well compressed summary; response len decisive if break loop or continue
         for run in range(self.cfg.max_compress_attempts):
             # max 1 retry per run for json error: response format decisive if break loop or continue
-            for attempt in range(2):
+            for attempt in range(self.cfg.json_parse_retries):
                 # log full prompt to logfile before llm query
                 self.logger.debug(
                     f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT START ===\n"
@@ -219,7 +219,7 @@ Cut repetition and scene logistics first.
         - 1x retry loop with exception control flow for invalid json format response (gemini glitch)
         """
         prompt = self._construct_prompt_create(scene, novel_progress, is_narrative)
-        for attempt in range(2):
+        for attempt in range(self.cfg.json_parse_retries):
             # log full prompt to logfile before llm query
             self.logger.debug(
                 f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
