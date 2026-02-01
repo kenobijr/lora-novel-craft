@@ -1,7 +1,7 @@
 """
 Add special e.g. reference material as additional scenes to json_scenes book file.
-- check against max tok len with tokenizer
-- scene is prepended to scenes list
+- scene text is checked against scene max token threshold
+- scene is always prepended at list and scene_ids of all elements updated
 """
 
 import argparse
@@ -9,11 +9,10 @@ import json
 from src.config import TOKENIZER, SceneConfig, Book, Scene
 
 
-# load cfg
 cfg = SceneConfig()
 
 
-def add_scene(book_json_path, scene_md_path, scene_id):
+def add_scene(book_json_path, scene_md_path):
     print("started process...")
     # load book_json into dicts & unpack into pydantic obj
     with open(book_json_path, mode="r", encoding="utf-8") as f:
@@ -23,13 +22,11 @@ def add_scene(book_json_path, scene_md_path, scene_id):
         scene_text = f.read()
     # calc & check text against max token size
     tok_amount = len(TOKENIZER.encode(scene_text))
-    assert tok_amount <= cfg.max_scene_size, "Scene text token amount too big..."
-    print(f"Read in Reference scene content in valid token amount range: {tok_amount} tokens")
-    # map & check scene_id
-    scene_id = int(scene_id)
-    assert scene_id > 0, "Valid scene_id > 0 needed for scene adding..."
+    if tok_amount > cfg.max_tokens:
+        raise ValueError(f"Scene text token: {tok_amount} over threshold: {cfg.max_tokens}")
+    # create new scene
     new_scene = Scene(
-        scene_id=scene_id,
+        scene_id=1,
         # reference content: chapter idx always 0, since prepended before narrative content
         chapter_index=0,
         # reference content: title always "Reference"
@@ -43,6 +40,9 @@ def add_scene(book_json_path, scene_md_path, scene_id):
     # prepend scene to book json scenes list at 1st pos
     book_content.scenes.insert(0, new_scene)
     print(f"Len scenes after adding: {len(book_content.scenes)}")
+    # update all scene_id's
+    for i, scene in enumerate(book_content.scenes, start=1):
+        scene.scene_id = i
     # write to target json
     with open(book_json_path, mode="w", encoding="utf-8") as f:
         json.dump(book_content.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
@@ -51,9 +51,8 @@ def add_scene(book_json_path, scene_md_path, scene_id):
 
 def main():
     """
-    cli entry point to add scenes manual at specified spot to existing book json file
-    - usage: <target_book.json> <scene_content.md> <scene_id>
-    - scene_id attribute the added scene will get in scenes list - check other scenes id's!
+    cli entry point to add ref scene manually to existing book json file
+    - usage: <target_book.json> <scene_content.md>
     """
     parser = argparse.ArgumentParser(description=__name__)
     parser.add_argument(
@@ -64,12 +63,8 @@ def main():
         "scene_content",
         help="path to scene content .md"
     )
-    parser.add_argument(
-        "scene_id",
-        help="scene_id attribute for new scene"
-    )
     args = parser.parse_args()
-    add_scene(args.book_path, args.scene_content, args.scene_id)
+    add_scene(args.book_path, args.scene_content)
 
 
 if __name__ == "__main__":
