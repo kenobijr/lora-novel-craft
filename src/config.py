@@ -23,8 +23,15 @@ TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
 
 class BookConfig(BaseModel):
     operation_name: str = "book_creation"
-    output_dir: str = "./data/json"
+    output_dir: str = "./data/json/base"
     debug_dir: str = "./data/debug/book_creation"
+    # prompts world context creation
+    prompt_system: str = "./prompts/world_context_creation/systemmessage.md"
+    prompt_input_format: str = "./prompts/world_context_creation/input_format.md"
+    prompt_instruction: str = "./prompts/world_context_creation/instruction.md"
+    api_base_url: str = "https://openrouter.ai/api/v1"
+    api_max_retries: int = 3  # # openai sdk param
+    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
 
 
 class BookMeta(BaseModel):
@@ -51,6 +58,17 @@ class Book(BaseModel):
     chapters: List[str] = []  # intermediate state
     scenes: List[Scene] = []
 
+
+class WorldContext(BaseModel):
+    """ llm response schema for world context creation """
+    tone_style: str  # Era/Genre / Atmosphere / Prose Voice / Sensory Anchors
+    world_rules: str  # Tech/Magic Level / Social Order / Key Constraint
+    protagonist_conditions: str  # protagonist's position in society, key constraints, motivation
+    factions: str  # Ruling Power / Resistance / Third Force
+    locations: str  # Location A / Location B / The Outside
+    narrative_engine: str  # Central Conflict / Stakes / Thematic Core
+
+
 # ------------------ SCENE CREATION LOGIC ------------------
 
 
@@ -64,6 +82,8 @@ class SceneConfig(BaseModel):
     prompt_instruction: str = "./prompts/scene_creation/instruction.md"
     debug_mode: bool = True
     debug_dir: str = "./data/debug/scene_creation"
+    api_base_url: str = "https://openrouter.ai/api/v1"
+    api_max_retries: int = 3  # # openai sdk param
 
 
 # scene splitting llm response format
