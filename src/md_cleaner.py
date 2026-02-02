@@ -12,6 +12,8 @@ import os
 import re
 import argparse
 from src.config import CleanerConfig
+from src.utils import init_logger
+
 
 cfg = CleanerConfig()
 
@@ -154,42 +156,40 @@ def normalize_formatting(text: str) -> str:
 
 def run_cleaner(input_book_path: str, force: bool) -> None:
     """
-    - I/O operations specified by CLI arguments
     - execute cleaning / formatting of .md file
     - write output file only if not existing yet (or with --force)
-    - print simple before / after stats
     """
-    # read input .md file
     with open(input_book_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    # counting before processing
-    char_before = len(content)
-    token_before = len(content.split())
+        book_content = f.read()
+    # init logger with book_name and log BEFORE stats
+    book_name = os.path.basename(input_book_path).removesuffix(".md")
+    logger = init_logger(cfg.operation_name, cfg.debug_dir, book_name)
+    logger.info(f"Starting cleaning book: {book_name} ...")
+    char_before, words_before = len(book_content), len(book_content.split())
+    logger.info(f"BEFORE | Amount chars: {char_before:,}; Amount words: {words_before:,}")
+    logger.info("---------------------------------------------")
     # execute cleaning & formatting
-    content = process_footnotes(content)
-    content = html_to_markdown(content)
-    content = remove_artifacts(content)
-    content = normalize_formatting(content)
-    # counting after processing
-    char_after = len(content)
-    token_after = len(content.split())
+    book_content = process_footnotes(book_content)
+    book_content = html_to_markdown(book_content)
+    book_content = remove_artifacts(book_content)
+    book_content = normalize_formatting(book_content)
+    # counting after processing & log AFTER
+    char_after, words_after = len(book_content), len(book_content.split())
+    char_delta, words_delta = char_before - char_after, words_before - words_after
+    logger.info(f"AFTER | Amount chars: {char_after:,}; Amount words: {words_after:,}")
+    logger.info(f"Chars removed: {char_delta:,}; Words removed: {words_delta:,}")
     # write processed .md file if not existing yet (or with --force)
-    book_name = os.path.basename(input_book_path)
-    output_book_path = os.path.join(cfg.output_dir, book_name)
+    output_book_path = os.path.join(cfg.output_dir, f"{book_name}.md")
     if os.path.exists(output_book_path) and not force:
         raise FileExistsError(
             f"Output file already exists: {output_book_path}\n"
             f"Use --force to overwrite"
         )
     with open(output_book_path, "w", encoding="utf8") as f:
-        f.write(content)
-    # print stats
-    char_delta = char_before - char_after
-    token_delta = token_before - token_after
-    print(f"File cleaned and saved as {output_book_path} successfully.")
-    print(f"BEFORE | Amount chars: {char_before:,}; Amount tokens: {token_before:,}")
-    print(f"AFTER  | Amount chars: {char_after:,}; Amount tokens: {token_after:,}")
-    print(f"Chars removed: {char_delta:,}; Tokens removed: {(token_delta):,}")
+        f.write(book_content)
+    logger.info("---------------------------------------------")
+    logger.info(f"Cleaned book .md file written to: {output_book_path}")
+    logger.info("-------Operation completed successfully.-------")
 
 
 def main():

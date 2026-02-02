@@ -192,3 +192,4 @@ class SceneInstruction(BaseModel):
 class CleanerConfig(BaseModel):
     operation_name: str = "md_cleaning"
     output_dir: str = "./data/md/final/text"
+    debug_dir: str = "./data/debug/cleaning"
