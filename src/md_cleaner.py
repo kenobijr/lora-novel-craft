@@ -1,16 +1,19 @@
 """
 CLI script to clean / format .md book files for further processing
-
-pipeline order:
-1. process_footnotes() - extract, replace inline refs, remove blocks
-2. html_to_markdown() - convert html elements to md format
-3. remove_artifacts() - remove pandoc/css noise
-4. normalize_formatting() - whitespace cleanup
+- chapter anchors like "# Chapter 1" or "# Chapter 1: Some Title" must be set before manually!
+- process:
+    1. process_footnotes() - extract, replace inline refs, remove blocks
+    2. html_to_markdown() - convert html elements to md format
+    3. remove_artifacts() - remove pandoc/css noise
+    4. normalize_formatting() - whitespace cleanup
 """
 
 import os
 import re
 import argparse
+from src.config import CleanerConfig
+
+cfg = CleanerConfig()
 
 
 def extract_footnotes(text: str) -> dict[str, str]:
@@ -57,7 +60,7 @@ def remove_footnote_blocks(text: str) -> str:
     - supports both integer (1) and decimal (2.1) footnote numbers
     """
     pattern = r'<span id="[^"]*?fn-[\d.]+[^"]*?"></span>\s*<a[^>]*>\[[\d.]+\]</a>.*?$\n?'
-    return re.sub(pattern, '', text, flags=re.MULTILINE)
+    return re.sub(pattern, "", text, flags=re.MULTILINE)
 
 
 def format_blockquotes(match: re.Match) -> str:
@@ -68,7 +71,7 @@ def format_blockquotes(match: re.Match) -> str:
     # grab the inner text (Group 1)
     inner_text = match.group(1)
     # Add "> " to the start of every line
-    quoted_lines = [f"> {line}" for line in inner_text.split('\n')]
+    quoted_lines = [f"> {line}" for line in inner_text.split("\n")]
     # Join them back together
     return "\n".join(quoted_lines)
 
@@ -122,15 +125,17 @@ def html_to_markdown(text: str) -> str:
     # Remove page marker spans but keep the text inside
     text = re.sub(r'<span id="[^"]+">([^<]+)</span>', r'\1', text)
     # Remove empty span id anchors (footnote/endnote markers)
-    text = re.sub(r'<span id="[^"]+"></span>', '', text)
+    text = re.sub(r'<span id="[^"]+"></span>', "", text)
     return text
 
 
 def remove_artifacts(text: str) -> str:
+    # remove div tags
+    text = re.sub(r'</?div[^>]*>', "", text)
     # remove decorative image spans
-    text = re.sub(r'<span class="nothing">.*?</span>', '', text)
+    text = re.sub(r'<span class="nothing">.*?</span>', "", text)
     # Remove pagebreak directives
-    text = re.sub(r'<\?pagebreak[^?]*\?>', '', text)
+    text = re.sub(r'<\?pagebreak[^?]*\?>', "", text)
     # remove pages: []{#9780063068452_Chapter_1.xhtml_page_12 .right_1 .pagebreak title="12"}
     text = re.sub(r"\[\]\{.*?\}", "", text)
     # remove css formatting: {.chap_head}
@@ -143,11 +148,11 @@ def normalize_formatting(text: str) -> str:
     pattern = r"\n+\s*\\?\*[\s\\?\*]+\s*\n+"
     text = re.sub(pattern, "\n\n", text)
     # normalize multiple consecutive line breaks to single line break
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'\n{3,}', "\n\n", text)
     return text.strip()
 
 
-def run_cleaner(file_name: str, input_dir: str, output_dir: str, force: str) -> None:
+def run_cleaner(input_book_path: str, force: bool) -> None:
     """
     - I/O operations specified by CLI arguments
     - execute cleaning / formatting of .md file
@@ -155,8 +160,7 @@ def run_cleaner(file_name: str, input_dir: str, output_dir: str, force: str) -> 
     - print simple before / after stats
     """
     # read input .md file
-    input_file = os.path.join(input_dir, file_name)
-    with open(input_file, "r", encoding="utf-8") as f:
+    with open(input_book_path, "r", encoding="utf-8") as f:
         content = f.read()
     # counting before processing
     char_before = len(content)
@@ -170,55 +174,44 @@ def run_cleaner(file_name: str, input_dir: str, output_dir: str, force: str) -> 
     char_after = len(content)
     token_after = len(content.split())
     # write processed .md file if not existing yet (or with --force)
-    output_file = os.path.join(output_dir, file_name)
-    if os.path.exists(output_file) and not force:
+    book_name = os.path.basename(input_book_path)
+    output_book_path = os.path.join(cfg.output_dir, book_name)
+    if os.path.exists(output_book_path) and not force:
         raise FileExistsError(
-            f"Output file already exists: {output_file}\n"
+            f"Output file already exists: {output_book_path}\n"
             f"Use --force to overwrite"
         )
-    with open(output_file, "w", encoding="utf8") as f:
+    with open(output_book_path, "w", encoding="utf8") as f:
         f.write(content)
     # print stats
     char_delta = char_before - char_after
     token_delta = token_before - token_after
-    print(f"File cleaned and saved as {output_file} successfully.")
+    print(f"File cleaned and saved as {output_book_path} successfully.")
     print(f"BEFORE | Amount chars: {char_before:,}; Amount tokens: {token_before:,}")
     print(f"AFTER  | Amount chars: {char_after:,}; Amount tokens: {token_after:,}")
     print(f"Chars removed: {char_delta:,}; Tokens removed: {(token_delta):,}")
 
 
-def process_args() -> argparse.Namespace:
+def main():
     """
-    process script cli arguments
-    - mandatory: input file to process without path
-    - optional:
-        - input_dir path if it differs from default
-        - output_dir path if it differs from default
-        - --force if existing output file should be overwritten
+    cli entry point to clean / format .md book files for further processing
+    - usage: python md_cleaner.py <input_book_path.md> --force
+    - output file written to output_dir defined in config.py
+    - overwrite output file with optional --force if it exists
     """
-    parser = argparse.ArgumentParser(description="convert raw_md into raw_json")
+    parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument(
-        "input_file",
-        help="Complete file name without path, e.g.: example_book_1.md"
-    )
-    parser.add_argument(
-        "-i", "--input_dir",
-        default="./data/md_raw/",
-        help="Input Dir (default: .data/md_raw/)"
-    )
-    parser.add_argument(
-        "-o", "--output_dir",
-        default="./data/md/",
-        help="Output Dir (default: ./data/md/)"
+        "input_book_path",
+        help="path to input book md file",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Overwrite output file if it exists"
+        help="overwrite output file if it exists"
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    run_cleaner(args.input_book_path, args.force)
 
 
 if __name__ == "__main__":
-    arg = process_args()
-    run_cleaner(arg.input_file, arg.input_dir, arg.output_dir, arg.force)
+    main()

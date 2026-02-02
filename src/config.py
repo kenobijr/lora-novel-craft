@@ -185,3 +185,10 @@ class SceneInstruction(BaseModel):
     characters_present: str  # Character 1; Character 2, ....
     emotional_beat: str  # The dominant emotion of the scene
     constraints: str  # Location, time pressure, secrets in play, physical limitations
+
+
+# ------------------ MD CLEANER LOGIC ------------------
+
+class CleanerConfig(BaseModel):
+    operation_name: str = "md_cleaning"
+    output_dir: str = "./data/md/final/text"
