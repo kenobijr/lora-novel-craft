@@ -47,9 +47,9 @@ class SceneSplitterLLM:
         self.title = os.path.basename(book_json).removesuffix(".json")
         # init llm
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
+            base_url=self.cfg.api_base_url,
             api_key=API_KEY,
-            max_retries=3  # standard SDK feature: try 3 times before giving up for certain errors
+            max_retries=self.cfg.api_max_retries
         )
 
     def _create_prompt(self, chapter_formatted: str) -> str:
