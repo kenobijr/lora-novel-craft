@@ -28,19 +28,22 @@
 ### Stage 1: Convert .epub to .md via Pandoc (CLI) & manual cleaning -> ./data/md/raw/
 - Convert .epub to .md with Pandoc to to clean XML / HTML tags but preserve semantic logic (italics / bold ...)
 ```pandoc input.epub -f epub -t gfm-smart --wrap=none -o output.md```
-- Manual / Claude Code pre-cleaning & formatting:
-  1. Manually delete noise: Title Page / End of novel / ... or add related logic to downstream md_cleaner.py script
-  2. Standardize Chapter Headers as anchors: "# Chapter 1: My Eagle" or "# Chapter 1: My Eagle"
+- Split content into separate .md files, if meaningful metadata available in book (optional):
+  1. Narrative
+  2. Reference data
+- Add Chapters as content anchors across all books:
+  - "# Chapter 1" (only arab numbers)
+  - "# Chapter 1: My Eagle" (If section title exists)
 
-### Stage 2: Clean .md with script & split Narrative from Reference content -> ./data/md/final/
+### Stage 2: Clean .md with script & split Narrative from Reference content -> ./data/md/final/text/
 - Process common anchors / css attritbutes / footnote patterns  into .md format
 - Clean noise & normalise formatting
-- Split book into separate .md files for certain reference data (e.g. character list, ....)
-  1. Novel / Story / Narrative (./data/md/final/text/)
-  2. Reference data (./data/md/final/ref/)
 
-### Stage 3: Create Base .json files -> ./data/json/base/
-- Create 1 json base file per novel with Claude Code agent
+### Stage 3: Create Base .json file with Chapters & Word Context-> ./data/json/base/
+- Create 1 json base file per novel 
+- Split text along Chapter anchors and add into chapters list
+- Create "World Context" / "World Rules" as constitution for each novel (must not exceed 400 tokens -> 300 - 320 words)
+
 - Data format:
 {
   "meta": {
@@ -49,20 +52,17 @@
     "author": "Jack London",
     "word_count": 17673,
     "total_chapters": 12,
-    "total_scenes": 0,
-    "world_context": null
+    "total_scenes": None,
+    "world_context": "....."
   },
+  "chapters": [..., ..., ...]
   "scenes": []
 }
 
-#### Stage 4: Create World Context for each novel -> ./data/json/base/
-- Create "World Context" / "World Rules" as constitution for each novel
-- Must not exceed 400 tokens -> 300 - 320 words
-
-#### Stage 5: Split Narrative into Semanctic Scenes -> ./data/json/scenes/
-- Parse Chapters into base unit "Semantic Scenes" (smaller than chapters)
+#### Stage 4: Split Narrative into Semanctic Scenes -> ./data/json/scenes/
+- Parse Chapters into base unit "Semantic Scenes"
 - Target: ~2000-3000 tokens (~1500 - 2300 words) per Scene
-##### 5.1 Process:
+##### 4.1 Process:
   1. Process Chapter by Chapter of input book json (deterministic)
   2. Split into paragraphs with sep: "\n\n" (deterministic)
   3. Merge to paragraph blocks of min size: 75 tokens (deterministic)
@@ -74,7 +74,7 @@
   5. Merge LLM cut atomic scenese into final **Semantic Scenes**: (deterministic)
     - Target range: 3000k tokens hard max
     - Greedy Merge
-##### 5.2 JSON Data Schema:
+##### 4.2 JSON Data Schema:
 {
   "meta": {
     "book_id": "iron_heel_london",
@@ -96,15 +96,15 @@
     },
   ]
 }
-##### 5.3 Handling of Reference Content
+##### 4.3 Handling of Reference Content (if existing)
 - Relevant special content like Vocab / Foreword / ... is split into scenes manually
 - Such scenes are prepended to the Narrative Semantic Scenes and flagged
 
-#### Stage 6: Create Running Summaries (Semantic Scenes specific)
+#### Stage 5: Create Running Summaries (Semantic Scenes specific)
 - Compress states of narrative into Running Summaries (like LSTM but in natural language) along Semantic Scenes as timesteps
 - Each Semantic Scene's Running Summary attribute contains the compressed Narrative: **what happened so far up to this specific Semantic Scene?**
 - Running Summary must not be greater than 400 tokens
-##### 6.1 Structure / Content
+##### 5.1 Structure / Content
 Each Running Summary is clustered into 2 logically separate categories / 8 attributes with separate token / word restraints:
 - **LOCAL MOMENTUM**| Last scene / Labels / Mood / Suspense | max 60 words combined:
   - scene_end_state: | MAX 25 words
@@ -116,7 +116,7 @@ Each Running Summary is clustered into 2 logically separate categories / 8 attri
   - world_state: | MAX 20 words
   - active_characters: | MAX 15 words
   - global_shift: | MAX 20 words
-##### 6.2 Process
+##### 5.2 Process
 - Create Root Summary for scene 1 with empty "story begins" values
 - Take world context + running summary current scene (n) + text current scene (n) to construct prompt
 - Query LLM with JSON response enforcement schema
@@ -125,7 +125,7 @@ Each Running Summary is clustered into 2 logically separate categories / 8 attri
   - Try up to 3 times using same input
 - If all compress calls fail to deliver response under token threshold, take response of last compress call
 - Take this new gen running summary to construct prompt to create running summary for next scene and so on
-##### 6.3 Prompt Setup
+##### 5.3 Prompt Setup
 - Systemmessage
 - Input / Content description
 - World Context (Fixed static file, as used before)
@@ -135,15 +135,15 @@ Each Running Summary is clustered into 2 logically separate categories / 8 attri
   - WORLD STATE: -> check llm response template
 - Text content current scene
 - Instruction
-##### 6.4 Handling of Reference Content Scenes
+##### 5.4 Handling of Reference Content Scenes
 - Construct special root running summary for reference scenes
 - Construct special prompt instruction to handle reference scenes
 
-### Stage 7: Create Instructions (Semantic Scenes specific)
+### Stage 6: Create Instructions (Semantic Scenes specific)
 - Instruction backtranslation with content along Semantic Scene lines:
 - *Create "a specific instruction, that would have prompted this text in this context*
 
-### Stage 8: Create final training in format JSONL 
+### Stage 7: Create final training in format JSONL 
 - Wrap content into special tokens <|im_start|> (Start of block) <|im_end|> (End of block)
 - Run "Compiler Script" to flattens JSONs into JSONL
 
