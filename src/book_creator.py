@@ -23,10 +23,11 @@ from openai import OpenAI
 from typing import Dict
 
 # llm model = openrouter id
-LLM = "google/gemini-2.0-flash-lite-001"
+LLM = "google/gemini-2.5-flash"
 # "google/gemini-2.5-pro"
 # "qwen/qwen-2.5-72b-instruct"
 # "google/gemini-2.0-flash-lite-001"
+# "google/gemini-2.5-flash"
 
 
 class WorldContextLLM:
@@ -169,8 +170,8 @@ class BookProcessor:
         for key, value in response.items():
             # transform snake_case key to markdown header: scene_end_state -> ## SCENE END STATE
             header = "## " + key.upper().replace("_", " ")
-            lines.append(f"{header}: {value}")
-        return "\n".join(lines)
+            lines.append(f"{header}\n{value}")
+        return "\n\n".join(lines)
 
     def _process_world_context(self):
         """ steer world context creation with llm call and save to json """

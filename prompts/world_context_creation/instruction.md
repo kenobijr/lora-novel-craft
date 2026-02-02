@@ -11,8 +11,8 @@ from first page to last. Not plot, but essence
   - Thematic engine (what drives the story forward?)
 - Include ALL template sections. Do not skip or rename any field
 
-### FIELD RULES (320 words MAXIMUM combined)
-Use EXACTLY the template format provided
+### FIELD RULES (300-320 words REQUIRED)
+Use the full word budget—extract rich detail. Use EXACTLY the template format provided
 **tone_style** | MAX 55 words
 - Era/Genre: period + subgenre
 - Atmosphere: 3 adjectives
@@ -37,7 +37,7 @@ Use EXACTLY the template format provided
 - Stakes: what if hero fails
 - Thematic Core: the philosophical question
 
-**TOTAL OUTPUT: 320 words MAXIMUM. Exceeding 320 words = INVALID; Word count means JSON values only, excluding keys and formatting**
+**TOTAL OUTPUT: 300-320 words REQUIRED. Under 300 = too sparse. Over 320 = INVALID. Use the full budget. Word count = JSON values only, excluding keys and formatting**
 
 ## OUTPUT FORMAT
 Return a valid JSON object matching this structure:
