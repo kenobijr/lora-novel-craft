@@ -237,7 +237,7 @@ class BookProcessor:
         self.logger.info("---------------------------------------------")
         self.logger.info("Creating world context ...")
         self._process_world_context()
-        self.logger.info("-------Operation completed successfully.-------")
+        self.logger.info("------Operation completed successfully-------")
 
 
 def main():

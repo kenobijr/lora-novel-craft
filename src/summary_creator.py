@@ -331,7 +331,7 @@ class SummaryProcessor:
 
     def _process_scenes(self, scene_range: Tuple):
         """
-        - loop through specified scenes range to create running summary for each
+        - process scenes specified in range to create running summary for the following scene
         - (0, 3) processes scenes 0, 1, 2 -> scene 3 not processed, but receives final summary
         - distinguish scene type: narrative vs. reference -> reference instruction value = "special"
         """
@@ -432,7 +432,7 @@ class SummaryProcessor:
         # create closing report
         self.logger.info("---------------------------------------------")
         self._create_report()
-        self.logger.info("Operation finished")
+        self.logger.info("------Operation completed successfully-------")
 
 
 def main():

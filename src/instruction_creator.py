@@ -227,7 +227,7 @@ class InstructionProcessor:
         self._process_scenes(scene_range)
         self.logger.info("---------------------------------------------")
         self._create_report()
-        self.logger.info("Operation finished")
+        self.logger.info("------Operation completed successfully-------")
 
 
 def main():
