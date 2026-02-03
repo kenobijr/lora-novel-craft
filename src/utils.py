@@ -5,7 +5,7 @@ import sys
 import logging
 
 
-def parse_scene_range(value: str) -> tuple[int, int]:
+def parse_range(value: str) -> tuple[int, int]:
     """
     - serveral cli entry points receive scene range with start end values
     - parse 'start,end' string into tuple for argparse

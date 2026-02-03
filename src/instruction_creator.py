@@ -2,7 +2,7 @@ import json
 import argparse
 import os
 from openai import OpenAI
-from src.utils import parse_scene_range, init_logger
+from src.utils import parse_range, init_logger
 from src.config import (
     API_KEY, TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
 )
@@ -210,7 +210,7 @@ class InstructionProcessor:
             self.logger.info(f"Instruction saved to scene id: {current_scene.scene_id}")
             self.logger.info("---------------------------------------------")
 
-    def run(self, scene_range: Tuple[int, int]) -> None:
+    def run(self, scene_range: Tuple[int, int] | None = None) -> None:
         len_scenes = len(self.book_content.scenes)
         if scene_range is None:
             scene_range = (0, len_scenes)
@@ -245,7 +245,7 @@ def main():
     parser.add_argument(
         "scene_range",
         nargs="?",
-        type=parse_scene_range,
+        type=parse_range,
         help="optional range as start,end (e.g. 0,10)",
     )
     args = parser.parse_args()

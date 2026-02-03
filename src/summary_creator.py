@@ -24,7 +24,7 @@ from src.config import (
     API_KEY, Book, Scene, TOKENIZER, SummaryConfig, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
-from src.utils import parse_scene_range, init_logger
+from src.utils import parse_range, init_logger
 from openai import OpenAI
 from typing import Dict, Tuple
 import logging
@@ -403,7 +403,7 @@ class SummaryProcessor:
         self.logger.info(f"Max compress attempts: {self.cfg.max_compress_attempts}")
         self.logger.info("---------------------------------------------")
 
-    def run(self, scene_range: Tuple[int, int] = None):
+    def run(self, scene_range: Tuple[int, int] | None = None) -> None:
         """
         - validate scene range if user-provided, otherwise construct default to do all scenes
         - if scene processing starts with 1st scene, root summary must be inserted
@@ -453,7 +453,7 @@ def main():
     parser.add_argument(
         "scene_range",
         nargs="?",
-        type=parse_scene_range,
+        type=parse_range,
         help="optional range as start,end (e.g. 0,10)",
     )
     args = parser.parse_args()
