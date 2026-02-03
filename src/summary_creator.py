@@ -375,7 +375,7 @@ class SummaryProcessor:
             self.logger.info(f"Summary saved to scene id: {next_scene.scene_id}")
             self.logger.info("---------------------------------------------")
 
-    def _create_report(self) -> None:
+    def _create_final_report(self) -> None:
         """ print report with stats collected during processing & config params """
         total_scenes = len(self.book_content.scenes)
         s = self.stats
@@ -401,6 +401,7 @@ class SummaryProcessor:
         self.logger.info(f"Max words: {self.cfg.max_words}")
         self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
         self.logger.info(f"Max compress attempts: {self.cfg.max_compress_attempts}")
+        self.logger.info(f"LLM used: {LLM}")
         self.logger.info("---------------------------------------------")
 
     def run(self, scene_range: Tuple[int, int] | None = None) -> None:
@@ -431,7 +432,7 @@ class SummaryProcessor:
         self._process_scenes(scene_range)
         # create closing report
         self.logger.info("---------------------------------------------")
-        self._create_report()
+        self._create_final_report()
         self.logger.info("------Operation completed successfully-------")
 
 

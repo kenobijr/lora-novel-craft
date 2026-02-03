@@ -159,7 +159,7 @@ class InstructionProcessor:
             lines.append(f"{header}: {value}")
         return "\n".join(lines)
 
-    def _create_report(self) -> None:
+    def _create_final_report(self) -> None:
         """ print report with stats collected during processing & config params """
         total_scenes = len(self.book_content.scenes)
         s = self.stats
@@ -175,6 +175,7 @@ class InstructionProcessor:
         self.logger.info("---------------------------------------------")
         self.logger.info(f"Max tokens: {self.cfg.max_tokens}")
         self.logger.info(f"Max words: {self.cfg.max_words}")
+        self.logger.info(f"LLM used: {LLM}")
         self.logger.info("---------------------------------------------")
 
     def _process_scenes(self, scene_range: Tuple[int, int]) -> None:
@@ -226,7 +227,7 @@ class InstructionProcessor:
         self.logger.info("---------------------------------------------")
         self._process_scenes(scene_range)
         self.logger.info("---------------------------------------------")
-        self._create_report()
+        self._create_final_report()
         self.logger.info("------Operation completed successfully-------")
 
 

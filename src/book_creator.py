@@ -237,6 +237,7 @@ class BookProcessor:
         self.logger.info("---------------------------------------------")
         self.logger.info("Creating world context ...")
         self._process_world_context()
+        self.logger.info(f"LLM used to generate World Context: {LLM}")
         self.logger.info("------Operation completed successfully-------")
 
 
