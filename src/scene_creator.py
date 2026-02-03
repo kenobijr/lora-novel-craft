@@ -316,6 +316,8 @@ class SceneProcessor:
     def _process_chapters(self, chapter_range: Tuple[int, int]):
         """
         - process chapters specified in range to create semantic scenes for each
+        - convert chapter text into text chunks -> atomic scenes -> semantic scenes
+        - after processing all chapters, delete 
         """
         for i in range(chapter_range[0], chapter_range[1]):
             current_chapter = self.book_content.chapters[i]
@@ -357,7 +359,7 @@ class SceneProcessor:
             # create scene objects, save them and write to output file
             self._save_scenes(semantic_scenes, chapter_idx, chapter_title)
 
-    def _create_report(self) -> None:
+    def _create_final_report(self) -> None:
         s = self.stats
         b = self.book_content
         # general
@@ -378,14 +380,13 @@ class SceneProcessor:
         self.logger.info("---------------------------------------------")
         self.logger.info(f"Semantic Scene max token: {self.cfg.scene_max_tokens}")
         self.logger.info(f"Text Chunk min token: {self.cfg.chunk_min_tokens}")
-        self.logger.info(f"LLM used: {LLM}")    
+        self.logger.info(f"LLM used: {LLM}")
 
     def run(self, chapter_range: Tuple[int, int] | None = None) -> None:
         """
-        execute book processing & print stats:
-        - split chapters into paragraphs along linebreaks (\n\n)
-        - create logical semantic scenes by combining chapter_paragraphs steered by llm calls
-        - build scene objects ready to save to target book json file
+        - validate or create chapter range to be processed
+        - trigger chapter processing with semantic scene creation & log some stats
+        - delete chapter text & update book meta stats after processing -> write to book file
         """
         len_chapters = len(self.book_content.chapters)
         # default: set chapter range to process all chapters from start to end
@@ -408,8 +409,12 @@ class SceneProcessor:
         full_text = " ".join([scene.text for scene in self.book_content.scenes])
         self.book_content.meta.word_count = len(full_text.split())
         self.book_content.meta.total_scenes = len(self.book_content.scenes)
+        # delete processed chapters & write final state to file
+        del self.book_content.chapters[chapter_range[0]:chapter_range[1]]
+        with open(self.book_path, mode="w", encoding="utf-8") as f:
+            json.dump(self.book_content.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
         # create closing report
-        self._create_report()
+        self._create_final_report()
         self.logger.info("------Operation completed successfully-------")
 
 
