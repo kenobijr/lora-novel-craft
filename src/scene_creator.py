@@ -1,24 +1,22 @@
 """
-Split up a novel saved in .md into logical Semantic Scene chunks (smaller than chapters) as
-preparation to use them in a dataset for LLM Finetuning.
-- judge LLM is tasked to split each book chapter into "Atomic Scenes"
-- after this scenes are merged into final Semantic Scenes up to a specified token boundary
-Files needed via CLI:
-1. input_book.md
-- must contain cleaned book text for n chapters
-- chapters must be separated by "# Chapter 1" or "# Chapter 2: Some title" as context anchors
-2. output_book.json
-- must be in specified format and contain "world context" content about book (is send to llm)
+Split up a novel narrative from Chapters into smaller Semantic Scene chunks.
+- llm cuts chapters into "atomic Scenes" along logical breakpoints (place, moood, ...)
+- atomic scenes are merged into final semantic scenes depending on token amount restraints
+input args:
+- json book file with narrative split by chapters
+- chapter range to be be processed; default: all chapters are processed
 """
 
 import os
 import re
 import json
 import argparse
-from src.config import API_KEY, TOKENIZER, SceneConfig, Book, Scene, ScenePartitioning
-from datetime import datetime
+from src.config import API_KEY, TOKENIZER, SceneConfig, Book, Scene, ScenePartitioning, SceneStats
+from src.utils import parse_range, init_logger
+import logging
 from openai import OpenAI
-from typing import List, Tuple, Dict
+from typing import List, Tuple
+
 
 # llm model = openrouter id
 LLM = "qwen/qwen-2.5-72b-instruct"
@@ -33,7 +31,13 @@ class SceneSplitterLLM:
     - world_context directly delivered as str; book metadata needed for llm call
     - manages & formats prompts / systemmessages
     """
-    def __init__(self, world_context: str, book_json: str, config: SceneConfig):
+    def __init__(
+            self,
+            config: SceneConfig,
+            world_context: str,
+            logger: logging.Logger,
+            stats: SceneStats
+    ):
         self.cfg = config
         self.wc = world_context
         # load prompts: systemmesage, input content description & instruction
@@ -43,16 +47,30 @@ class SceneSplitterLLM:
             self.prompt_input = f.read()
         with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
             self.prompt_instruction = f.read()
-        # save cleaned book title for debugging
-        self.title = os.path.basename(book_json).removesuffix(".json")
         # init llm
         self.client = OpenAI(
             base_url=self.cfg.api_base_url,
             api_key=API_KEY,
             max_retries=self.cfg.api_max_retries
         )
+        self.logger = logger
+        self.stats = stats
 
-    def _create_prompt(self, chapter_formatted: str) -> str:
+    def _annotate_text_chunks(self, chapter: List[str]) -> str:
+        """
+        - llm must know pos and token amount of each text chunk to merge them within constrainst
+        - annotate each text chunks with consecutive number and token amount as header
+        - merge it into combined str in following target format:
+        [P:1|Tok:23] Example text 123....
+        [P:2|Tok:4] Example 456 .....
+        """
+        lines = []
+        for i, chunk in enumerate(chapter, start=1):
+            tok_chunk = len(TOKENIZER.encode(chunk))
+            lines.append(f"[C:{i}|Tok:{tok_chunk}] {chunk}")
+        return "\n".join(lines)
+
+    def _create_prompt(self, annotated_text_chunks: str) -> str:
         return f"""
 <system>
 {self.prompt_system}
@@ -67,7 +85,7 @@ class SceneSplitterLLM:
 </world_context>
 
 <text_paragraphs>
-{chapter_formatted}
+{annotated_text_chunks}
 </text_paragraphs>
 
 <instruction>
@@ -75,341 +93,347 @@ class SceneSplitterLLM:
 </instruction>
 """
 
-    def _debug_llm_call(self, prompt: str, response: str) -> None:
+    def get_scene_boundaries(self, text_chunks: str, chapter_idx: int) -> List[int]:
         """
-        - switch on / off with config
-        - if activated, on every llm call prompt & response are saved into debug folder
+        - scene target size in tokens via prompt: 400 - 1000 tokens; ~600-800 goldilocks
+        - annotate chapter text chunks into llm format and create prompt
+        - llm response returns list of dict with n end_chunks for each atomic semantic scene
+        - each end_chunk contains int as value, which relates to position of text chunk list
         """
-        os.makedirs(self.cfg.debug_dir, exist_ok=True)
-        ts = datetime.now().strftime("%H%M%S_%f")
-        prompt_path = os.path.join(self.cfg.debug_dir, f"debug_prompt.{self.title}.{ts}.md")
-        response_path = os.path.join(self.cfg.debug_dir, f"debug_llm.{self.title}.{ts}.json")
-        with open(prompt_path, mode="w", encoding="utf-8") as f:
-            f.write(prompt)
-        with open(response_path, mode="w", encoding="utf-8") as f:
-            json.dump(response, f, indent=2, ensure_ascii=False)
-
-    def get_llm_scene_partitions(self, chapter_formatted: str, amount_p: int) -> List[Dict]:
-        """
-        - get formatted chapter content for 1 book chapter ready to send to llm
-        - use amount_paragraphs for chapter to check llm response for consistency
-        - return list of dicts with end_paragraph int for each semantic scene
-        """
-        # parse systemmessage
-        full_prompt = self._create_prompt(chapter_formatted)
+        # create systemmessage using annotated text chunks
+        prompt = self._create_prompt(self._annotate_text_chunks(text_chunks))
         # prompt llm
-        response = self.client.chat.completions.create(
-            model=LLM,
-            messages=[{"role": "user", "content": full_prompt}],
-            temperature=0.1,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "scene_partition",
-                    "strict": True,
-                    "schema": ScenePartitioning.model_json_schema()
+        for attempt in range(self.cfg.json_parse_retries):
+            self.logger.debug(
+                f"\n=== CHAPTER PARTITIONING: Chapter # {chapter_idx} PROMPT START ===\n"
+                f"{prompt}\n"
+                f"=== CHAPTER PARTITIONING: Chapter # {chapter_idx} PROMPT END ==="
+            )
+            response = self.client.chat.completions.create(
+                model=LLM,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "scene_partition",
+                        "strict": True,
+                        "schema": ScenePartitioning.model_json_schema()
+                    }
+                },
+                # fits only on qwen3!!!
+                extra_body={
+                    "provider": {
+                        "only": ["DeepInfra"]
+                    }
                 }
-            },
-            # fits only on qwen3!!!
-            extra_body={
-                "provider": {
-                    "only": ["DeepInfra"]
-                }
-            }
-        )
-        result = json.loads(response.choices[0].message.content)
-        # # DEBUGGING without live llm calls // replace llm response by test file in same format
-        # with open("./data/debug/json/test_scene_partition.json", mode="r", encoding="utf-8") as f:
-        #     result = json.load(f)
-        # if debug mode activated prompt & llm response will be saved
-        if self.cfg.debug_mode:
-            self._debug_llm_call(full_prompt, result)
-        # further validations
-        # scenes are consecutive (no gaps/overlaps)
-        last_boundary = 0
-        for i, scene in enumerate(result["scenes"]):
-            current_boundary = scene["end_paragraph"]
-            # check: strictly increasing -> current boundary must be greater than the one before
-            if current_boundary <= last_boundary:
-                raise ValueError(
-                    f"Validation Failed: Scene {i} boundary ({current_boundary}) "
-                    f"is not greater than previous boundary ({last_boundary})."
-                )
-            last_boundary = current_boundary
-        # end_paragraph final scene should be equal total amount paragraphs in chapter
+            )
+            # grab content in raw json for logging
+            result_content = response.choices[0].message.content
+            # log llm response before parsing / formatting
+            self.logger.debug(
+                f"\n=== CHAPTER PARTITIONING: Chapter # {chapter_idx} RESPONSE START ===\n"
+                f"{result_content}\n"
+                f"=== CHAPTER PARTITIONING: Chapter # {chapter_idx} RESPONSE END ==="
+            )
+            try:
+                result = json.loads(result_content)
+                break
+            except json.JSONDecodeError as e:
+                if attempt == 0:
+                    self.logger.warning(f"Invalid JSON response at Chapter {chapter_idx}: {e}")
+                    continue
+                raise
+        # extract scene boundaries (cut llm intermediate data) and validate logically
+        boundaries = [scene["chunk_boundary"] for scene in result["scenes"]]
+        # 1. check strictly increasing -> current boundary must be greater than the one before
+        last = 0
+        for i, boundary in enumerate(boundaries):
+            current = boundary
+            if current <= last:
+                # no logging necessary -> exceptions from llm query catched & looged downstream
+                raise ValueError(f"Atomic Sem Scene {i}: boundary {current} <= previous {last}")
+            last = current
+        # 2. chunk_boundary of final scene must equal total amount of text chunks in chapter
         # correct if llm calcs falsely; otherwise text could be lost
-        if last_boundary < amount_p:
-            diff = amount_p - last_boundary
-            print("---------------------------------------------")
-            print(f"WARN: LLM missed p: Ended at {last_boundary} vs. {amount_p}). Auto-correcting...")
-            # force extend the very last scene to include the missing paragraphs
-            result["scenes"][-1]["end_paragraph"] = amount_p
-            print(f"correction completed; difference of {diff} corrected.")
-            print("---------------------------------------------")
-        # return validated list
-        return result["scenes"]
+        len_chunks = len(text_chunks)
+        if last < len_chunks:
+            diff = len_chunks - last
+            self.logger.info("---------------------------------------------")
+            self.logger.warning(f"LLM missed chunks: Ended at {last} vs. {len_chunks})")
+            self.stats.invalid_partitioning += 1
+            # force extend the very last scene to include the missing chunks
+            boundaries[-1] = len_chunks
+            self.logger.info(f"Auto-correct last chunk boundary completed for diff of {diff}")
+            self.logger.info("---------------------------------------------")
+        # return flattened list of chunk boundaries ints
+        return boundaries
 
 
-class BookProcessor:
+class SceneProcessor:
     """
-    - steering the whole book to scene splitting process
     - pass world_context further & init scene splitting llm class with it
     - save scene objects to self.book_json during processing
     """
-    def __init__(self, input_book_path: str, output_book_path: str, config=None):
-        # get globals / config parameters from data_prep config dataclass
+    def __init__(self, book_path: str, config=None):
         self.cfg = config if config is not None else SceneConfig()
-        # parse & save content from book md file: narrative as one formatted str
-        with open(input_book_path, mode="r", encoding="utf-8") as f:
-            self.raw_text = f.read()
-        # file path target json file
-        self.book_json_path = output_book_path
-        # parse & save content from book json file: structured book meta data
-        # 1. unpack dict from json.load into kw arguments -> 2. create pydantic book obj (=validate)
-        with open(output_book_path, mode="r", encoding="utf-8") as f:
-            self.book_json = Book(**json.load(f))
-        # save original wc from book json sep for stats
-        self.orig_wc = self.book_json.meta.word_count
-        # init llm -> pass world context strfrom book json, book json path & config
+        self.book_path = book_path
+        # unpack dict from json.load into kw arguments -> 2. create pydantic book obj (=validate)
+        with open(book_path, mode="r", encoding="utf-8") as f:
+            self.book_content = Book(**json.load(f))
+        # setup logger & stats
+        book_name = os.path.basename(book_path).removesuffix(".json")
+        self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
+        self.stats = SceneStats(original_word_count=self.book_content.meta.word_count)
         self.llm = SceneSplitterLLM(
-            self.book_json.meta.world_context,
-            output_book_path,
-            self.cfg
+            self.cfg,
+            self.book_content.meta.world_context,
+            self.logger,
+            self.stats,
         )
-        # raw text splitted into chapters during processing
-        self.chapters = None
-        # list of final semantic scene objects as saved to target json
-        self.scene_objects = None
+
+    def _chunk_chapter(self, chapter: str) -> List[str]:
+        """
+        - split up chapter text into into list of smaller text chunks
+        - llm will merge these text chunks into atomic semantic scenes
+        - each text_block must have min size, so llm is not crowded with tiny chunks
+        """
+        # split text along \n\n and filter empty paragraphs within each chapter
+        paragraphs = [p.strip() for p in chapter.split("\n\n") if p.strip()]
+        text_chunks = []
+        bucket = ""
+        bucket_counter = 0
+        for p in paragraphs:
+            p_tok = len(TOKENIZER.encode(p))
+            # case 1: bucket is empty
+            if not bucket:
+                # if atomic paragraph is greater than min size append it to p_blocks else bucket
+                if p_tok >= self.cfg.chunk_min_tokens:
+                    text_chunks.append(p)
+                else:
+                    # in this case bucket is always empty, so add without \n\n added to p
+                    bucket += p
+                    bucket_counter += p_tok
+            # case 2: content in bucket
+            else:
+                # if p & bucket content are greater than threshold, empty bucket; else add to it
+                if bucket_counter + p_tok >= self.cfg.chunk_min_tokens:
+                    text_chunks.append(f"{bucket}\n\n{p}")
+                    bucket = ""
+                    bucket_counter = 0
+                else:
+                    bucket += f"\n\n{p}"
+                    bucket_counter += p_tok
+        # flush bucket after loop if not empty
+        if bucket:
+            text_chunks.append(bucket)
+        return text_chunks
 
     @staticmethod
-    def _extract_chapter_metadata(chapter: List[str]) -> Tuple[int, str]:
+    def _extract_chapter_metadata(chapter: str) -> Tuple[int, str | None]:
         """
-        - extract chapter idx & title (if available) from chapter in form chapter_paragraphs
+        - extract chapter idx & title (if available) from raw chapter str
         - format always like # Chapter 1; with title: # Chapter 1: Title
         """
-        match = re.match(r'^#\s*Chapter\s+(\d+)(?::\s*(.+))?', chapter[0])
-        chapter_index = int(match.group(1))
-        chapter_title = match.group(2)
-        return chapter_index, chapter_title
+        first_line = chapter.split("\n")[0]
+        match = re.match(r"^#\s*Chapter\s+(\d+)(?::\s*(.+))?", first_line)
+        if not match:
+            raise ValueError(f"Invalid chapter header: {first_line}")
+        return int(match.group(1)), match.group(2)
 
-    def _format_paragraphs(self, chapter: List[str]) -> str:
+    @staticmethod
+    def _apply_partitioning(text_chunks: List[str], partitioning: List[int]) -> List[str]:
         """
-        - add consecutive numbers and token amount as headers to paragraphs
-        - merge it all to 1 string ready for llm to consume
-        - target format:
-        [P:1|Tok:23] Example text 123....
-        [P:2|Tok:4] Example 456 .....
+        - merge text chunks into llm cut atomic scenes using scene partitioning
+        - partitioning ints represent chunk_boundaries relating to list position of text_chunks
         """
-        lines = []
-        for i, p in enumerate(chapter, start=1):
-            tok_p = len(TOKENIZER.encode(p))
-            lines.append(f"[P:{i}|Tok:{tok_p}] {p}")
-        return "\n".join(lines)
+        prev_end = 0
+        atomic_scenes = []
+        for chunk_boundary in partitioning:
+            end = chunk_boundary
+            atomic_scenes.append("\n\n".join(text_chunks[prev_end:end]))
+            prev_end = end
+        return atomic_scenes
 
-    def _create_semantic_scenes(self, chapter_paragraphs: List[List[str]]) -> List[Tuple]:
+    @staticmethod
+    def _merge_atomic_scenes(atomic_scenes: List[str], scene_max_tokens: int) -> List[str]:
         """
-        process chapter by chapter to create semantic scenes:
-        1. extract chapter metadata (idx, title) at start -> must be in 1st paragraph
-        2. bring each chapter into llm format with numbered p + token amount
-        3. send formatted str to llm + total amount paragraphs in chapter (for testing)
-        -> get boundaries with "end_paragraph" back for semanctic scenes in form:
-        [
-            {
-            "final_token_sum": "P1(4) + P2(95) ...+ P5(196) = 884.",
-            "end_paragraph": 5
-            },
-        ]
-        4. use llm partitions to merge paragraphs into semantic scenes -> List[List[str]]
-        5. for return list of all scenes with tuples chapter metadata + scenes
+        - take atomic scenes and merge them until specified max scene token len
+        - atomic scenes were cut with optimal semantic breakpoints (prompt: 400 - 1000) in mind
+        - how many of these are merged into final semantic scenes, depends on train len restraints
         """
-        all_scenes = []
-        for chapter in chapter_paragraphs:
-            # extract chapter metadata
-            chapter_idx, chapter_title = self._extract_chapter_metadata(chapter)
-            print(f"Started processing chapter: {chapter_idx}")
-            # format & enrich chapter content for llm
-            chapter_formatted = self._format_paragraphs(chapter)
-            print(f"Prompting LLM for chapter: {chapter_idx} ...")
-            # get atomic semantic scene boundaries for chapter by llm
-            scene_partitions = self.llm.get_llm_scene_partitions(chapter_formatted, len(chapter))
-            # combine paragraphs to scenes with partitioning dicts
-            prev_end = 0
-            atomic_scenes = []
-            for scene_content in scene_partitions:
-                end = scene_content["end_paragraph"]
-                atomic_scenes.append("\n\n".join(chapter[prev_end:end]))  # directly join here
-                prev_end = end
-            # stats for scene size / amount of llm cut atomic scenes
-            print(f"Received response by LLM with amount of Atomic Scenes: {len(atomic_scenes)}")
-            avg_atomic_scene = sum(
-                len(TOKENIZER.encode(scene)) for scene in atomic_scenes
-            ) / len(atomic_scenes)
-            print(f"Token avg per Atomic Scene before processing: {avg_atomic_scene:,.2f}")
-            # merge atomic scenes into bigger target semantic scenes up to specified max size
-            semantic_scenes = []
-            token_counter = 0
-            running_scene = ""
-            for scene in atomic_scenes:
-                tok_current = len(TOKENIZER.encode(scene))
-                # if running scene, together with current scene, under threshold -> add up
-                if token_counter + tok_current <= self.cfg.max_tokens:
-                    running_scene += ("\n\n" + scene) if running_scene else scene
-                    token_counter += tok_current
-                # otherwise finalise & reset running scene & counter; add current scene after it
-                else:
-                    # append running scene to list as final processed scene
-                    semantic_scenes.append(running_scene)
-                    # reset running scene & counter
-                    running_scene = ""
-                    token_counter = 0
-                    # add current scene to running scene & update counter
-                    running_scene += scene
-                    token_counter += tok_current
-            # if residual after loop, append rest from running scene
-            if running_scene:
+        semantic_scenes = []
+        token_counter = 0
+        running_scene = ""
+        for scene in atomic_scenes:
+            tok_current = len(TOKENIZER.encode(scene))
+            # if running scene, together with current scene, under threshold -> add up
+            if token_counter + tok_current <= scene_max_tokens:
+                running_scene += ("\n\n" + scene) if running_scene else scene
+                token_counter += tok_current
+            # otherwise finalise & reset running scene & counter; add current scene after it
+            else:
+                # append running scene to list as final processed scene
                 semantic_scenes.append(running_scene)
-            # stats for final processed semantic scenes
-            print(f"Amount Semantic scenes after processing: {len(semantic_scenes)}")
-            avg_semantic_scene = sum(
-                len(TOKENIZER.encode(scene)) for scene in semantic_scenes
-            ) / len(semantic_scenes)
-            print(f"Token avg per Semantic Scene after processing: {avg_semantic_scene:,.2f}")
-            print("---------------------------------------------")
-            # add all scenes to list with chapter metadata
-            all_scenes.append((chapter_idx, chapter_title, semantic_scenes))
+                # reset running scene & counter
+                running_scene = ""
+                token_counter = 0
+                # add current scene to running scene & update counter
+                running_scene += scene
+                token_counter += tok_current
+        # if residual after loop, append rest from running scene
+        if running_scene:
+            semantic_scenes.append(running_scene)
+        return semantic_scenes
 
-        return all_scenes
-
-    def _save_scenes(self, scenes: List[Tuple[str, str, List]]) -> List:
+    def _save_scenes(
+            self,
+            semantic_scenes: List[str],
+            chapter_idx: int,
+            chapter_title: str | None,
+    ) -> None:
         """
-        - loop through chapter tuples & create consecutive scenes with text & chapter meta data
-        - create scene objects for each scene in pydantic specified format
-        - save scene objects to self.book_json every iteration
-        - write to target file one time after loop
+        - create scene objects for each scene in list in pydantic specified format
+        - save scene objects to book content
+        - write to target file
         """
-        for chapter_tpl in scenes:
-            for scene_content in chapter_tpl[2]:
-                # scene attributes instruction, running_summary, scene_id via defaults for now
-                new_scene = Scene(
-                    chapter_index=chapter_tpl[0],
-                    # pass chapter_title if available at scene (book) as txt, otherwise None
-                    chapter_title=chapter_tpl[1],
-                    text=scene_content
-                )
-                self.book_json.scenes.append(new_scene)
-        # numerate scene_id's
-        for i, scene in enumerate(self.book_json.scenes, start=1):
+        # create raw scenes and append to book content
+        for content in semantic_scenes:
+            new_scene = Scene(
+                chapter_index=chapter_idx,
+                chapter_title=chapter_title,
+                text=content
+            )
+            self.book_content.scenes.append(new_scene)
+        # update all scene_id's
+        for i, scene in enumerate(self.book_content.scenes, start=1):
             scene.scene_id = i
-        # update global word counter & scene counter at book meta
-        full_text = " ".join([scene.text for scene in self.book_json.scenes])
-        self.book_json.meta.word_count = len(full_text.split())
-        self.book_json.meta.total_scenes = len(self.book_json.scenes)
-        # use pydantic json model dump method to write obj into json
-        with open(self.book_json_path, mode="w", encoding="utf-8") as f:
-            json.dump(self.book_json.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+        # use pydantic json model dump method to write to json
+        with open(self.book_path, mode="w", encoding="utf-8") as f:
+            json.dump(self.book_content.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+        self.logger.info(f"Scenes of Chapter {chapter_idx} saved to {self.book_path}")
 
-    def _split_to_p_blocks(self) -> List[List[str]]:
+    def _process_chapters(self, chapter_range: Tuple[int, int]):
         """
-        - split up each chapter into into list of paragraph blocks splitted by \n\n:
-        - each p_block must have min size -> prevent bloating llm with many p from (e.g. dialogues)
-        - target format: - List[str] -> [['# Chapter 1', 'Some text..... ]
+        - process chapters specified in range to create semantic scenes for each
         """
-        processed_chapters = []
-        for chapter_text in self.chapters:
-            # split text along \n\n and filter empty paragraphs within each chapter
-            raw_paragraphs = [p.strip() for p in chapter_text.split("\n\n") if p.strip()]
-            chapter_blocks = []
-            bucket = ""
-            bucket_counter = 0
-            for p in raw_paragraphs:
-                p_tok = len(TOKENIZER.encode(p))
-                # case 1: bucket is empty
-                if not bucket:
-                    # if atomic paragraph is greater than min size append it to p_blocks else bucket
-                    if p_tok >= self.cfg.min_paragraph_size:
-                        chapter_blocks.append(p)
-                    else:
-                        # in this case bucket is always empty, so add without \n\n added to p
-                        bucket += p
-                        bucket_counter += p_tok
-                # case 2: content in bucket
-                else:
-                    # if p & bucket content are greater than threshold, empty bucket; else add to it
-                    if bucket_counter + p_tok >= self.cfg.min_paragraph_size:
-                        chapter_blocks.append(f"{bucket}\n\n{p}")
-                        bucket = ""
-                        bucket_counter = 0
-                    else:
-                        bucket += f"\n\n{p}"
-                        bucket_counter += p_tok
-            # flush bucket after loop if not empty
-            if bucket:
-                chapter_blocks.append(bucket)
-            processed_chapters.append(chapter_blocks)
-        return processed_chapters
+        for i in range(chapter_range[0], chapter_range[1]):
+            current_chapter = self.book_content.chapters[i]
+            # extract chapter number & title metadata from raw chapter str
+            chapter_idx, chapter_title = self._extract_chapter_metadata(current_chapter)
+            self.logger.info(f"Started processing Chapter: # {chapter_idx}; title: {chapter_title}")
+            # split chapter str into text chunks
+            text_chunks = self._chunk_chapter(current_chapter)
+            chunk_amount = len(text_chunks)
+            chunk_tokens = sum(len(TOKENIZER.encode(chunk)) for chunk in text_chunks)
+            chunk_avg = chunk_tokens / chunk_amount
+            self.stats.chunk_amount += chunk_amount
+            self.stats.chunk_tokens += chunk_tokens
+            self.logger.info(f"Gen {chunk_amount} Text Chunks; Avg: {chunk_avg:,.2f} tok")
+            # query llm to get partitioning schema to map text chunks into atomic semantic scenes
+            self.logger.info("Query LLM for scene partitioning...")
+            try:
+                scene_partitions = self.llm.get_scene_boundaries(text_chunks, chapter_idx)
+            except Exception:
+                self.logger.exception(f"LLM query error scene partitioning Chapter # {chapter_idx}")
+                raise
+            self.logger.info(f"LLM partitioning response -> Amount scenes: {len(scene_partitions)}")
+            # apply partitioning on text chunks to get llm cut atomic scenes; log stats
+            atomic_scenes = self._apply_partitioning(text_chunks, scene_partitions)
+            atomic_amount = len(atomic_scenes)
+            atomic_tokens = sum(len(TOKENIZER.encode(scene)) for scene in atomic_scenes)
+            atomic_avg = atomic_tokens / atomic_amount
+            self.stats.atomic_amount += atomic_amount
+            self.stats.atomic_tokens += atomic_tokens
+            self.logger.info(f"Gen {atomic_amount} Atomic Scenes; Avg: {atomic_avg:,.2f} tok")
+            # merge atomic scenes into bigger semantic scenes depending on train token constraints
+            semantic_scenes = self._merge_atomic_scenes(atomic_scenes, self.cfg.scene_max_tokens)
+            semantic_amount = len(semantic_scenes)
+            semantic_tokens = sum(len(TOKENIZER.encode(scene)) for scene in semantic_scenes)
+            semantic_avg = semantic_tokens / semantic_amount
+            self.stats.semantic_amount += semantic_amount
+            self.stats.semantic_tokens += semantic_tokens
+            self.logger.info(f"Gen {semantic_amount} Semantic Scenes; Avg: {semantic_avg:,.2f} tok")
+            # create scene objects, save them and write to output file
+            self._save_scenes(semantic_scenes, chapter_idx, chapter_title)
 
-    def _text_to_chapters(self) -> List[str]:
-        """
-        - split up book into chapters along these chapter anchors: # Chapter 1
-        - use re (?=...) lookahead splits before the match
-        - check amount parsed chapters against "total_chapters" in book metadata json
-        """
-        # ^ + multiline flag: match only valid at start of newline, but every newline due to flag
-        chapters = re.split(r"(?=^# Chapter)", self.raw_text, flags=re.MULTILINE)
-        # remove empty string at first pos from split before # Chapter 1
-        chapters = [i for i in chapters if i.strip()]
-        # check against meta chapter numbers
-        assert self.book_json.meta.total_chapters == len(chapters), "check chapter processing"
-        return chapters
+    def _create_report(self) -> None:
+        s = self.stats
+        b = self.book_content
+        # general
+        self.logger.info(f"Converted {b.meta.total_chapters} Chapters")
+        self.logger.info(f"into {b.meta.total_scenes} Semantic Scenes")
+        avg_scene_per_chapter = b.meta.total_scenes / b.meta.total_chapters
+        self.logger.info(f"Avg Scenes / Chapter: {avg_scene_per_chapter:.1f}")
+        self.logger.info(f"BEFORE: total word count: {s.original_word_count:,}")
+        self.logger.info(f"AFTER: total word count: {b.meta.word_count}")
+        # processing
+        chunk_avg = s.chunk_tokens / s.chunk_amount
+        self.logger.info(f"Gen {s.chunk_amount} Text Chunks; Avg: {chunk_avg:,.2f} tokens")
+        atomic_avg = s.atomic_tokens / s.atomic_amount
+        self.logger.info(f"Gen {s.atomic_amount} Atomic Scenes; Avg: {atomic_avg:,.2f} tokens")
+        semantic_avg = s.semantic_tokens / s.semantic_amount
+        self.logger.info(f"Gen {s.semantic_amount} Semantic Scenes;Avg: {semantic_avg:,.2f} tokens")
+        # print relevant params used for this ops
+        self.logger.info("---------------------------------------------")
+        self.logger.info(f"Semantic Scene max token: {self.cfg.scene_max_tokens}")
+        self.logger.info(f"Text Chunk min token: {self.cfg.chunk_min_tokens}")
+        self.logger.info(f"LLM used: {LLM}")    
 
-    def run(self):
+    def run(self, chapter_range: Tuple[int, int] | None = None) -> None:
         """
         execute book processing & print stats:
-        1. split narrative in form of 1 consecutive str into list of str along chapters
-        2. split chapters into paragraphs along linebreaks (\n\n)
-        3. create logical semantic scenes by combining chapter_paragraphs steered by llm calls
-        4. build scene objects ready to save to target book json file
+        - split chapters into paragraphs along linebreaks (\n\n)
+        - create logical semantic scenes by combining chapter_paragraphs steered by llm calls
+        - build scene objects ready to save to target book json file
         """
-        print("Starting process ...")
-        self.chapters = self._text_to_chapters()
-        print(f"Split chapters into list: {len(self.chapters)}")
-        print("---------------------------------------------")
-        chapter_paragraphs = self._split_to_p_blocks()
-        print("Split chapters into paragraphs as additional level...")
-        print(f"Amount paragraphs in 1st chapter after splitting: {len(chapter_paragraphs[0])}")
-        print("---------------------------------------------")
-        scenes = self._create_semantic_scenes(chapter_paragraphs)
-        print(f"Received valid semantic scene responses by LLM for: {len(scenes)} Chapters")
-        print("---------------------------------------------")
-        print("Start processing scene objs and save to target JSON file ...")
-        self._save_scenes(scenes)
-        print(f"Did create {len(self.book_json.scenes)} semantic scenes in total.")
-        print("---------------------------------------------")
-        # print book wc from meta before op vs. wc of all scenes
-        print(f"Original Word Count from book meta (before operation): {self.orig_wc}")
-        print(f"Word Count all scenes combined (after): {self.book_json.meta.word_count}")
-        print("---------------------------------------------")
-        print(f"Book JSON file written to: {self.book_json_path}")
-        print("-------Operation completed successfully.-------")
+        len_chapters = len(self.book_content.chapters)
+        # default: set chapter range to process all chapters from start to end
+        if chapter_range is None:
+            chapter_range = (0, len_chapters)
+        else:
+            # only validate user-provided range
+            if chapter_range[0] < 0:
+                raise ValueError("start must be >= 0")
+            if chapter_range[1] > len_chapters:
+                raise ValueError(f"end must be <= {len_chapters}")
+            if chapter_range[0] >= chapter_range[1]:
+                raise ValueError("start must be < end")
+        self.logger.info(f"Starting process book: {self.book_content.meta.title} ...")
+        self.logger.info(f"Processing scenes: start {chapter_range[0]} - end {chapter_range[1]}...")
+        self.logger.info("---------------------------------------------")
+        self._process_chapters(chapter_range)
+        self.logger.info("---------------------------------------------")
+        # update global word counter & scene counter at book meta
+        full_text = " ".join([scene.text for scene in self.book_content.scenes])
+        self.book_content.meta.word_count = len(full_text.split())
+        self.book_content.meta.total_scenes = len(self.book_content.scenes)
+        # create closing report
+        self._create_report()
+        self.logger.info("------Operation completed successfully-------")
 
 
 def main():
     """
-    cli entry point for converting .md novels into .json with narrative split into Semantic Scenes
-    - Usage: python scene_creator.py <input_book_path.md> <output_book_path.json>
+    cli entry point for converting chapters into smaller semantic scene chunks
+    - Usage: python scene_creator.py <input_book.json> <start,end>
+    - provide optional chapter range arg to process only certain range of chapters
+    - default: each chapter at input book json is concerted into semantic scenes
     """
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument(
-        "input_book_path",
-        help="path to input book md file",
+        "book_path",
+        help="path to input book json file",
     )
     parser.add_argument(
-        "output_book_path",
-        help="path to output book json file",
+        "chapter_range",
+        nargs="?",
+        type=parse_range,
+        help="optional range as start,end (e.g. 0,3)",
     )
     args = parser.parse_args()
-    bp = BookProcessor(args.input_book_path, args.output_book_path)
-    bp.run()
+    bp = SceneProcessor(args.book_path)
+    bp.run(args.chapter_range)
 
 
 if __name__ == "__main__":

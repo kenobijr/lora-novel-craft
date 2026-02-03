@@ -75,22 +75,40 @@ class WorldContext(BaseModel):
 class SceneConfig(BaseModel):
     """ scene creation config params """
     operation_name: str = "semantic_scene"
-    max_tokens: int = 3000
-    min_paragraph_size: int = 75
+    scene_max_tokens: int = 3000  # max token restraint for target semantic scenes
+    chunk_min_tokens: int = 75  # min token restraint any text chunk must fullfil
     prompt_system: str = "./prompts/scene_creation/systemmessage.md"
     prompt_input_format: str = "./prompts/scene_creation/input_format.md"
     prompt_instruction: str = "./prompts/scene_creation/instruction.md"
-    debug_mode: bool = True
     debug_dir: str = "./data/debug/scene_creation"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
+    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
+
+
+class SceneStats(BaseModel):
+    """ track semantic scene creation stats through the process to create final report at end """
+    chunk_amount: int = 0  # total amount of all text chunks across all chapters
+    chunk_tokens: int = 0  # total sum of tokens of all text chunks
+    atomic_amount: int = 0  # total amount of all llm cut atomic scenes across all chapters
+    atomic_tokens: int = 0  # total sum of tokens of all atomic scenes
+    semantic_amount: int = 0  # total amount of all semantic scenes across all chapters
+    semantic_tokens: int = 0  # total sum of tokens of all semantic scenes
+    original_word_count: int = 0  # save for stats before updating it at book meta after processing
+    invalid_partitioning: int = 0  # can occur 1x at chapter-wise llm queries
+    
+    # created: int = 0
+ 
+    # too_large: int = 0
+    # total_words: int = 0
+    # total_tokens: int = 0
 
 
 # scene splitting llm response format
 class SceneBoundary(BaseModel):
     """ single scene boundary marker """
     final_token_sum: str
-    end_paragraph: int
+    chunk_boundary: int
 
 
 class ScenePartitioning(BaseModel):
