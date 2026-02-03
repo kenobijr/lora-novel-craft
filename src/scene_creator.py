@@ -317,6 +317,7 @@ class SceneProcessor:
         """
         - process chapters specified in range to create semantic scenes for each
         - convert chapter text into text chunks -> atomic scenes -> semantic scenes
+        - after processing all chapters, delete 
         """
         for i in range(chapter_range[0], chapter_range[1]):
             current_chapter = self.book_content.chapters[i]
@@ -327,9 +328,10 @@ class SceneProcessor:
             text_chunks = self._chunk_chapter(current_chapter)
             chunk_amount = len(text_chunks)
             chunk_tokens = sum(len(TOKENIZER.encode(chunk)) for chunk in text_chunks)
+            chunk_avg = chunk_tokens / chunk_amount
             self.stats.chunk_amount += chunk_amount
             self.stats.chunk_tokens += chunk_tokens
-            self.logger.info(f"Gen {chunk_amount} Text Chunks; Avg: {chunk_tokens/chunk_amount:,.2f} tok")
+            self.logger.info(f"Gen {chunk_amount} Text Chunks; Avg: {chunk_avg:,.2f} tok")
             # query llm to get partitioning schema to map text chunks into atomic semantic scenes
             self.logger.info("Query LLM for scene partitioning...")
             try:
@@ -338,20 +340,22 @@ class SceneProcessor:
                 self.logger.exception(f"LLM query error scene partitioning Chapter # {chapter_idx}")
                 raise
             self.logger.info(f"LLM partitioning response -> Amount scenes: {len(scene_partitions)}")
-            # apply partitioning on text chunks to get llm cut atomic scenes
+            # apply partitioning on text chunks to get llm cut atomic scenes; log stats
             atomic_scenes = self._apply_partitioning(text_chunks, scene_partitions)
             atomic_amount = len(atomic_scenes)
             atomic_tokens = sum(len(TOKENIZER.encode(scene)) for scene in atomic_scenes)
+            atomic_avg = atomic_tokens / atomic_amount
             self.stats.atomic_amount += atomic_amount
             self.stats.atomic_tokens += atomic_tokens
-            self.logger.info(f"Gen {atomic_amount} Atomic Scenes; Avg: {atomic_tokens/atomic_amount:,.2f} tok")
+            self.logger.info(f"Gen {atomic_amount} Atomic Scenes; Avg: {atomic_avg:,.2f} tok")
             # merge atomic scenes into bigger semantic scenes depending on train token constraints
             semantic_scenes = self._merge_atomic_scenes(atomic_scenes, self.cfg.scene_max_tokens)
             semantic_amount = len(semantic_scenes)
             semantic_tokens = sum(len(TOKENIZER.encode(scene)) for scene in semantic_scenes)
+            semantic_avg = semantic_tokens / semantic_amount
             self.stats.semantic_amount += semantic_amount
             self.stats.semantic_tokens += semantic_tokens
-            self.logger.info(f"Gen {semantic_amount} Semantic Scenes; Avg: {semantic_tokens/semantic_amount:,.2f} tok")
+            self.logger.info(f"Gen {semantic_amount} Semantic Scenes; Avg: {semantic_avg:,.2f} tok")
             # create scene objects, save them and write to output file
             self._save_scenes(semantic_scenes, chapter_idx, chapter_title)
 
