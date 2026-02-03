@@ -96,12 +96,6 @@ class SceneStats(BaseModel):
     semantic_tokens: int = 0  # total sum of tokens of all semantic scenes
     original_word_count: int = 0  # save for stats before updating it at book meta after processing
     invalid_partitioning: int = 0  # can occur 1x at chapter-wise llm queries
-    
-    # created: int = 0
- 
-    # too_large: int = 0
-    # total_words: int = 0
-    # total_tokens: int = 0
 
 
 # scene splitting llm response format
@@ -210,9 +204,6 @@ class InstructionConfig(BaseModel):
 class InstructionStats(BaseModel):
     """ track instruction creation stats through the process to create final report at end """
     created: int = 0
-    # compressed: int = 0
-    # compress_runs: int = 0
-    # compressed_successfully: int = 0
     total_words: int = 0
     total_tokens: int = 0
     too_large: int = 0

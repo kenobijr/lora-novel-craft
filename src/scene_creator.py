@@ -1,7 +1,8 @@
 """
-Split up a novel narrative from Chapters into smaller Semantic Scene chunks.
-- llm cuts chapters into "atomic Scenes" along logical breakpoints (place, moood, ...)
-- atomic scenes are merged into final semantic scenes depending on token amount restraints
+Split up a novel narrative from Chapters into smaller Semantic Scenes.
+1. chapter text is splitted into text chunks
+2. llm partitions these text chunks into atomic scenes along logical breakpoints (place, moood, ...)
+3. atomic scenes are merged into final semantic scenes depending on token amount restraints
 input args:
 - json book file with narrative split by chapters
 - chapter range to be be processed; default: all chapters are processed
@@ -28,7 +29,7 @@ LLM = "qwen/qwen-2.5-72b-instruct"
 class SceneSplitterLLM:
     """
     - handles llm related logic: model / api / key / connections / ...
-    - world_context directly delivered as str; book metadata needed for llm call
+    - world_context directly delivered as str -> book metadata needed for llm call
     - manages & formats prompts / systemmessages
     """
     def __init__(
@@ -58,11 +59,11 @@ class SceneSplitterLLM:
 
     def _annotate_text_chunks(self, chapter: List[str]) -> str:
         """
-        - llm must know pos and token amount of each text chunk to merge them within constrainst
+        - llm must know pos and token amount of each text chunk to merge them within constraints
         - annotate each text chunks with consecutive number and token amount as header
         - merge it into combined str in following target format:
-        [P:1|Tok:23] Example text 123....
-        [P:2|Tok:4] Example 456 .....
+        [C:1|Tok:23] Example text 123....
+        [C:2|Tok:4] Example 456 .....
         """
         lines = []
         for i, chunk in enumerate(chapter, start=1):
@@ -149,11 +150,10 @@ class SceneSplitterLLM:
         # 1. check strictly increasing -> current boundary must be greater than the one before
         last = 0
         for i, boundary in enumerate(boundaries):
-            current = boundary
-            if current <= last:
-                # no logging necessary -> exceptions from llm query catched & looged downstream
-                raise ValueError(f"Atomic Sem Scene {i}: boundary {current} <= previous {last}")
-            last = current
+            if boundary <= last:
+                # no logging necessary -> exceptions from llm query caught & logged downstream
+                raise ValueError(f"Atomic Sem Scene {i}: boundary {boundary} <= previous {last}")
+            last = boundary
         # 2. chunk_boundary of final scene must equal total amount of text chunks in chapter
         # correct if llm calcs falsely; otherwise text could be lost
         len_chunks = len(text_chunks)
@@ -172,8 +172,8 @@ class SceneSplitterLLM:
 
 class SceneProcessor:
     """
-    - pass world_context further & init scene splitting llm class with it
-    - save scene objects to self.book_json during processing
+    - handles all chapter to semantic scenes mapping logic
+    - all llm related logic is done by SceneSplitterLLM, which is instantiated by SceneProcessor
     """
     def __init__(self, book_path: str, config=None):
         self.cfg = config if config is not None else SceneConfig()
@@ -317,7 +317,6 @@ class SceneProcessor:
         """
         - process chapters specified in range to create semantic scenes for each
         - convert chapter text into text chunks -> atomic scenes -> semantic scenes
-        - after processing all chapters, delete 
         """
         for i in range(chapter_range[0], chapter_range[1]):
             current_chapter = self.book_content.chapters[i]
@@ -376,6 +375,7 @@ class SceneProcessor:
         self.logger.info(f"Gen {s.atomic_amount} Atomic Scenes; Avg: {atomic_avg:,.2f} tokens")
         semantic_avg = s.semantic_tokens / s.semantic_amount
         self.logger.info(f"Gen {s.semantic_amount} Semantic Scenes;Avg: {semantic_avg:,.2f} tokens")
+        self.logger.info(f"Invalid LLM partitionings (auto-corrected): {s.invalid_partitioning}")
         # print relevant params used for this ops
         self.logger.info("---------------------------------------------")
         self.logger.info(f"Semantic Scene max token: {self.cfg.scene_max_tokens}")

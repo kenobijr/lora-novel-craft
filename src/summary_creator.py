@@ -280,17 +280,17 @@ Cut repetition and scene logistics first.
 
 
 class SummaryProcessor:
-    def __init__(self, book_json_path: str, config=None):
+    def __init__(self, book_path: str, config=None):
         # enable init with argument for testing; normal case create SceneConfig obj from config.py
         self.cfg = config if config is not None else SummaryConfig()
         # save path of book
-        self.book_json_path = book_json_path
+        self.book_path = book_path
         # save name of book file for logging
         # load book json & map into pydantic obj
-        with open(book_json_path, mode="r", encoding="utf-8") as f:
+        with open(book_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
         # setup logfile & init logger with it
-        book_name = os.path.basename(book_json_path).removesuffix(".json")
+        book_name = os.path.basename(book_path).removesuffix(".json")
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
         # track stats for report creation at end
         self.stats = SummaryStats()
@@ -365,7 +365,7 @@ class SummaryProcessor:
                 self.stats.too_large += 1
             # save new running summary at following scene & save with pydantic json model dump
             next_scene.running_summary = new_running_summary
-            with open(self.book_json_path, mode="w", encoding="utf-8") as f:
+            with open(self.book_path, mode="w", encoding="utf-8") as f:
                 json.dump(
                     self.book_content.model_dump(mode="json"),
                     f,

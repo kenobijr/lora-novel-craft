@@ -132,12 +132,12 @@ NOVEL PROGRESS: {novel_progress}%
 
 
 class InstructionProcessor:
-    def __init__(self, book_json_path: str, config=None):
+    def __init__(self, book_path: str, config=None):
         self.cfg = config if config is not None else InstructionConfig()
-        self.book_json_path = book_json_path
-        with open(book_json_path, mode="r", encoding="utf-8") as f:
+        self.book_path = book_path
+        with open(book_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
-        book_name = os.path.basename(book_json_path).removesuffix(".json")
+        book_name = os.path.basename(book_path).removesuffix(".json")
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
         self.stats = InstructionStats()
         self.llm = InstructionCreatorLLM(
@@ -201,7 +201,7 @@ class InstructionProcessor:
             if amount_tokens > self.cfg.max_tokens:
                 self.stats.too_large += 1
             current_scene.instruction = new_instruction
-            with open(self.book_json_path, mode="w", encoding="utf-8") as f:
+            with open(self.book_path, mode="w", encoding="utf-8") as f:
                 json.dump(
                     self.book_content.model_dump(mode="json"),
                     f,
