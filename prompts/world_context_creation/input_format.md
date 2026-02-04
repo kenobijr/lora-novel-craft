@@ -1,2 +1,0 @@
-- Novel text
-- Reference material (optional)

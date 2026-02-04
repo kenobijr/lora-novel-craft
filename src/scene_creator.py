@@ -44,8 +44,6 @@ class SceneSplitterLLM:
         # load prompts: systemmesage, input content description & instruction
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
             self.prompt_system = f.read()
-        with open(self.cfg.prompt_input_format, mode="r", encoding="utf-8") as f:
-            self.prompt_input = f.read()
         with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
             self.prompt_instruction = f.read()
         # init llm
@@ -77,17 +75,13 @@ class SceneSplitterLLM:
 {self.prompt_system}
 </system>
 
-<input_description>
-{self.prompt_input}
-</input_description>
-
 <world_context>
 {self.wc}
 </world_context>
 
-<text_paragraphs>
+<text_chunks>
 {annotated_text_chunks}
-</text_paragraphs>
+</text_chunks>
 
 <instruction>
 {self.prompt_instruction}
@@ -367,7 +361,7 @@ class SceneProcessor:
         avg_scene_per_chapter = b.meta.total_scenes / b.meta.total_chapters
         self.logger.info(f"Avg Scenes / Chapter: {avg_scene_per_chapter:.1f}")
         self.logger.info(f"BEFORE: total word count: {s.original_word_count:,}")
-        self.logger.info(f"AFTER: total word count: {b.meta.word_count}")
+        self.logger.info(f"AFTER: total word count: {b.meta.word_count:,}")
         # processing
         chunk_avg = s.chunk_tokens / s.chunk_amount
         self.logger.info(f"Gen {s.chunk_amount} Text Chunks; Avg: {chunk_avg:,.2f} tokens")

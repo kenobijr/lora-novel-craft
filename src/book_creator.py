@@ -44,8 +44,6 @@ class WorldContextLLM:
         # load prompts
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
             self.prompt_system = f.read()
-        with open(self.cfg.prompt_input_format, mode="r", encoding="utf-8") as f:
-            self.prompt_input = f.read()
         with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
             self.prompt_instruction = f.read()
         self.logger = logger
@@ -69,10 +67,6 @@ class WorldContextLLM:
 <system>
 {self.prompt_system}
 </system>
-
-<input_description>
-{self.prompt_input}
-</input_description>
 
 <novel>
 {self.book_content}

@@ -50,8 +50,6 @@ class SummaryCreatorLLM:
         # load prompts
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
             self.prompt_system = f.read()
-        with open(self.cfg.prompt_input_format, mode="r", encoding="utf-8") as f:
-            self.prompt_input = f.read()
         with open(self.cfg.prompt_instruction_narrative, mode="r", encoding="utf-8") as f:
             self.prompt_instruction_nar = f.read()
         with open(self.cfg.prompt_instruction_reference, mode="r", encoding="utf-8") as f:
@@ -86,10 +84,6 @@ class SummaryCreatorLLM:
 <system>
 {self.prompt_system}
 </system>
-
-<input_description>
-{self.prompt_input}
-</input_description>
 
 <world_context>
 {self.wc}

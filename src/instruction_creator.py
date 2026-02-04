@@ -29,8 +29,6 @@ class InstructionCreatorLLM:
         # load prompts to use at llm call
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
             self.prompt_system = f.read()
-        with open(self.cfg.prompt_input_format, mode="r", encoding="utf-8") as f:
-            self.prompt_input = f.read()
         with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
             self.prompt_instruction = f.read()
         # load inference systemmessage to add it as metadata content to prompt
@@ -49,10 +47,6 @@ class InstructionCreatorLLM:
 <system>
 {self.prompt_system}
 </system>
-
-<input_description>
-{self.prompt_input}
-</input_description>
 
 <world_context>
 {self.wc}

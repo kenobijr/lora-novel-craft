@@ -24,11 +24,10 @@ TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
 class BookConfig(BaseModel):
     operation_name: str = "book_creation"
     output_dir: str = "./data/json/base"
-    debug_dir: str = "./data/debug/book_creation"
+    debug_dir: str = "./data/debug/book"
     # prompts world context creation
-    prompt_system: str = "./prompts/world_context_creation/systemmessage.md"
-    prompt_input_format: str = "./prompts/world_context_creation/input_format.md"
-    prompt_instruction: str = "./prompts/world_context_creation/instruction.md"
+    prompt_system: str = "./prompts/world_context/systemmessage.md"
+    prompt_instruction: str = "./prompts/world_context/instruction.md"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
@@ -77,10 +76,9 @@ class SceneConfig(BaseModel):
     operation_name: str = "semantic_scene"
     scene_max_tokens: int = 3000  # max token restraint for target semantic scenes
     chunk_min_tokens: int = 75  # min token restraint any text chunk must fullfil
-    prompt_system: str = "./prompts/scene_creation/systemmessage.md"
-    prompt_input_format: str = "./prompts/scene_creation/input_format.md"
-    prompt_instruction: str = "./prompts/scene_creation/instruction.md"
-    debug_dir: str = "./data/debug/scene_creation"
+    prompt_system: str = "./prompts/scene/systemmessage.md"
+    prompt_instruction: str = "./prompts/scene/instruction.md"
+    debug_dir: str = "./data/debug/scene"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
@@ -118,11 +116,10 @@ class SummaryConfig(BaseModel):
     max_tokens: int = 400  # token range (final formatted str)
     max_words: int = 200  # word range (raw json dict values summed up (no keys / signs / ...)
     max_words_buffer: int = 40  # allowed overshoot for word range
-    prompt_system: str = "./prompts/summary_creation/systemmessage.md"
-    prompt_input_format: str = "./prompts/summary_creation/input_format.md"
-    prompt_instruction_narrative: str = "./prompts/summary_creation/instruction_narrative.md"
-    prompt_instruction_reference: str = "./prompts/summary_creation/instruction_reference.md"
-    debug_dir: str = "./data/debug/summary_creation"
+    prompt_system: str = "./prompts/summary/systemmessage.md"
+    prompt_instruction_narrative: str = "./prompts/summary/instruction_narrative.md"
+    prompt_instruction_reference: str = "./prompts/summary/instruction_reference.md"
+    debug_dir: str = "./data/debug/summary"
     # api / llm
     max_compress_attempts: int = 3
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
@@ -188,17 +185,16 @@ class InstructionConfig(BaseModel):
     max_tokens: int = 100  # token range (final formatted str)
     max_words: int = 80
     # prompts to use for create instruction llm calls
-    prompt_system: str = "./prompts/instruction_creation/systemmessage.md"
-    prompt_input_format: str = "./prompts/instruction_creation/input_format.md"
-    prompt_instruction: str = "./prompts/instruction_creation/instruction.md"
+    prompt_system: str = "./prompts/instruction/systemmessage.md"
+    prompt_instruction: str = "./prompts/instruction/instruction.md"
     # inference systemmessage to be added as metadata to llm calls
     inference_systemmessage: str = "./prompts/inference/systemmessage.md"
-    # url
+    # url / api
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # openai sdk param
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
     # debug
-    debug_dir: str = "./data/debug/instruction_creation"
+    debug_dir: str = "./data/debug/instruction"
 
 
 class InstructionStats(BaseModel):
