@@ -9,41 +9,35 @@ Convert .md book into base .json book file, split text along chapters and create
 """
 
 import argparse
-from src.config import BookConfig, Book, BookMeta, WorldContext, API_KEY, TOKENIZER, MODEL_REGISTRY
+from src.config import (
+    BaseLLM, BookConfig, Book, BookMeta, WorldContext, TOKENIZER, MODEL_REGISTRY
+)
 from src.utils import init_logger
 import logging
 import os
 import re
 import json
-from openai import OpenAI
 from typing import Dict
 
 
-class WorldContextLLM:
-    """ handles llm related logic: model / api / key / connections / ... """
+class WorldContextLLM(BaseLLM):
+    """
+    - handles llm related logic: model / api / key / connections / ...
+    - loading & saving base prompts, logger & openai client done via base class from config.py
+    - constructing prompt with task-specific content & llm queries done in each subclass
+    """
     def __init__(
         self,
         config: BookConfig,
+        logger: logging.Logger,
         book_content: str,
         book_reference: str | None,
-        logger: logging.Logger,
     ):
-        self.cfg = config
+        super().__init__(config, logger)
         # novel text as str
         self.book_content = book_content
         # additional novel reference material as str (optional)
         self.book_reference = book_reference
-        # load prompts
-        with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
-            self.prompt_system = f.read()
-        with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
-            self.prompt_instruction = f.read()
-        self.logger = logger
-        self.client = OpenAI(
-            base_url=self.cfg.api_base_url,
-            api_key=API_KEY,
-            max_retries=self.cfg.api_max_retries
-        )
 
     def _construct_prompt(self):
         """ add reference material content to prompt if available """
@@ -139,9 +133,9 @@ class BookProcessor:
         # setup llm
         self.llm = WorldContextLLM(
             self.cfg,
+            self.logger,
             self.book_content,
             self.book_reference,  # str | None
-            self.logger,
         )
 
     @staticmethod

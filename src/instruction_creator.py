@@ -1,41 +1,34 @@
 import json
 import argparse
 import os
-from openai import OpenAI
 from src.utils import parse_range, init_logger
 from src.config import (
-    API_KEY, TOKENIZER, MODEL_REGISTRY,
-    InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
+    TOKENIZER, MODEL_REGISTRY,
+    BaseLLM, InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
 )
 from typing import Tuple, Dict
 import logging
 
 
-class InstructionCreatorLLM:
+class InstructionCreatorLLM(BaseLLM):
+    """
+    - handles llm related logic: model / api / key / connections / ...
+    - loading & saving base prompts, logger & openai client done via base class from config.py
+    - constructing prompt with task-specific content & llm queries done in each subclass
+    """
     def __init__(
         self,
         config: InstructionConfig,
-        world_context: str,
         logger: logging.Logger,
+        world_context: str,
         stats: InstructionStats
     ):
-        self.cfg = config
+        super().__init__(config, logger)
         self.wc = world_context
-        # load prompts to use at llm call
-        with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
-            self.prompt_system = f.read()
-        with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
-            self.prompt_instruction = f.read()
         # load inference systemmessage to add it as metadata content to prompt
         with open(self.cfg.inference_systemmessage, mode="r", encoding="utf-8") as f:
             self.inference_systemmessage = f.read()
-        self.logger = logger
         self.stats = stats
-        self.client = OpenAI(
-            api_key=API_KEY,
-            base_url=self.cfg.api_base_url,
-            max_retries=self.cfg.api_max_retries,
-        )
 
     def _construct_prompt(self, scene: Scene, novel_progress: int) -> str:
         return f"""
@@ -126,8 +119,8 @@ class InstructionProcessor:
         self.stats = InstructionStats()
         self.llm = InstructionCreatorLLM(
             self.cfg,
-            self.book_content.meta.world_context,
             self.logger,
+            self.book_content.meta.world_context,
             self.stats,
         )
 

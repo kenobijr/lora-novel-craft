@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from transformers import AutoTokenizer
 from pydantic import BaseModel
 from typing import List, Optional
+import logging
+from openai import OpenAI
 
 # ------------------ GLOBALS ------------------
 
@@ -228,6 +230,29 @@ class SceneInstruction(BaseModel):
     characters_present: str  # Character 1; Character 2, ....
     emotional_beat: str  # The dominant emotion of the scene
     constraints: str  # Location, time pressure, secrets in play, physical limitations
+
+
+# ------------------ BASE LLM CLASS --------------------
+class BaseLLM:
+    """
+    - provides base common init logic / params that all llm classes share to inherit from
+    - save task-specific confic class; use these params for setup of other attributes
+    - load prompts for systemmessage & instruction
+    - save logger
+    - setup llm openai client
+    """
+    def __init__(self, config, logger: logging.Logger):
+        self.cfg = config
+        with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
+            self.prompt_system = f.read()
+        with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
+            self.prompt_instruction = f.read()
+        self.logger = logger
+        self.client = OpenAI(
+            base_url=self.cfg.api_base_url,
+            api_key=API_KEY,
+            max_retries=self.cfg.api_max_retries
+        )
 
 
 # ------------------ MD CLEANER LOGIC ------------------

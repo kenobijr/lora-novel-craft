@@ -13,36 +13,30 @@ import re
 import json
 import argparse
 from src.config import (
-    API_KEY, TOKENIZER, MODEL_REGISTRY, SceneConfig, Book, Scene, ScenePartitioning, SceneStats
+    TOKENIZER, MODEL_REGISTRY,
+    BaseLLM, SceneConfig, Book, Scene, ScenePartitioning, SceneStats
 )
 from src.utils import parse_range, init_logger
 import logging
-from openai import OpenAI
 from typing import List, Tuple
 
 
-class SceneSplitterLLM:
+class SceneSplitterLLM(BaseLLM):
+    """
+    - handles llm related logic: model / api / key / connections / ...
+    - loading & saving base prompts, logger & openai client done via base class from config.py
+    - constructing prompt with task-specific content & llm queries done in each subclass
+    """
     def __init__(
             self,
             config: SceneConfig,
-            world_context: str,
             logger: logging.Logger,
-            stats: SceneStats
+            world_context: str,
+            stats: SceneStats,
     ):
-        self.cfg = config
+        super().__init__(config, logger)
+        
         self.wc = world_context
-        # load prompts: systemmesage, input content description & instruction
-        with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
-            self.prompt_system = f.read()
-        with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
-            self.prompt_instruction = f.read()
-        # init llm
-        self.client = OpenAI(
-            base_url=self.cfg.api_base_url,
-            api_key=API_KEY,
-            max_retries=self.cfg.api_max_retries
-        )
-        self.logger = logger
         self.stats = stats
 
     def _annotate_text_chunks(self, chapter: List[str]) -> str:
@@ -166,8 +160,8 @@ class SceneProcessor:
         self.stats = SceneStats(original_word_count=self.book_content.meta.word_count)
         self.llm = SceneSplitterLLM(
             self.cfg,
-            self.book_content.meta.world_context,
             self.logger,
+            self.book_content.meta.world_context,
             self.stats,
         )
 

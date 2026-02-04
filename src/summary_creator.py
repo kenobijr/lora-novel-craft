@@ -15,40 +15,33 @@ import argparse
 import json
 import os
 from src.config import (
-    API_KEY, TOKENIZER, MODEL_REGISTRY, Book, Scene, SummaryConfig, RunningSummary, SummaryStats,
+    TOKENIZER, MODEL_REGISTRY, BaseLLM, SummaryConfig, Book, Scene, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
 from src.utils import parse_range, init_logger
-from openai import OpenAI
 from typing import Dict, Tuple
 import logging
 
 
-class SummaryCreatorLLM:
+class SummaryCreatorLLM(BaseLLM):
+    """
+    - handles llm related logic: model / api / key / connections / ...
+    - loading & saving base prompts, logger & openai client done via base class from config.py
+    - constructing prompt with task-specific content & llm queries done in each subclass
+    """
     def __init__(
         self,
         config: SummaryConfig,
-        world_context: str,
         logger: logging.Logger,
+        world_context: str,
         stats: SummaryStats,
     ):
-        self.cfg = config
+        super().__init__(config, logger)
         # world context from book json needed for each llm call
         self.wc = world_context
-        # load prompts
-        with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
-            self.prompt_system = f.read()
-        with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
-            self.prompt_instruction_nar = f.read()
+        # load separate instruction for reference material scenes
         with open(self.cfg.prompt_instruction_reference, mode="r", encoding="utf-8") as f:
             self.prompt_instruction_ref = f.read()
-        self.client = OpenAI(
-            base_url=self.cfg.api_base_url,
-            api_key=API_KEY,
-            max_retries=self.cfg.api_max_retries
-        )
-        # init logger
-        self.logger = logger
         # stats obj to track progress
         self.stats = stats
 
@@ -63,7 +56,7 @@ class SummaryCreatorLLM:
         - differentiate between narrative & reference scenes
         """
         prompt_instruction = (
-            self.prompt_instruction_nar
+            self.prompt_instruction
             if is_narrative
             else self.prompt_instruction_ref
         )
@@ -256,8 +249,8 @@ class SummaryProcessor:
         # init llm
         self.llm = SummaryCreatorLLM(
             self.cfg,
-            self.book_content.meta.world_context,
             self.logger,
+            self.book_content.meta.world_context,
             self.stats,
         )
 
