@@ -1,12 +1,12 @@
 import json
 import argparse
 import os
-from src.utils import parse_range, init_logger
+from src.utils import parse_range, init_logger, format_llm_response
 from src.config import (
     TOKENIZER, MODEL_REGISTRY,
     BaseLLM, InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
 )
-from typing import Tuple, Dict
+from typing import Tuple
 import logging
 
 
@@ -124,18 +124,6 @@ class InstructionProcessor:
             self.stats,
         )
 
-    @staticmethod
-    def _format_instruction(response: Dict) -> str:
-        """
-        - take instruction as python dict and map into target .md styled str format
-        - stay in sync to ## .md format of earlier generated content: scenes, world_context
-        """
-        lines = ["# Instruction\n"]
-        for key, value in response.items():
-            header = "## " + key.upper().replace("_", " ")
-            lines.append(f"{header}: {value}")
-        return "\n".join(lines)
-
     def _create_final_report(self) -> None:
         """ print report with stats collected during processing & config params """
         total_scenes = len(self.book_content.scenes)
@@ -170,7 +158,7 @@ class InstructionProcessor:
             except Exception:
                 self.logger.exception(f"Failed process scene {current_scene.scene_id}")
                 raise
-            new_instruction = self._format_instruction(new_instruction)
+            new_instruction = format_llm_response(new_instruction, "Instruction")
             amount_tokens = len(TOKENIZER.encode(new_instruction))
             self.logger.info(f"Total amount tokens: {amount_tokens}")
             self.stats.total_tokens += amount_tokens

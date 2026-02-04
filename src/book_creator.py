@@ -12,12 +12,11 @@ import argparse
 from src.config import (
     BaseLLM, BookConfig, Book, BookMeta, WorldContext, TOKENIZER, MODEL_REGISTRY
 )
-from src.utils import init_logger
+from src.utils import init_logger, format_llm_response
 import logging
 import os
 import re
 import json
-from typing import Dict
 
 
 class WorldContextLLM(BaseLLM):
@@ -138,16 +137,6 @@ class BookProcessor:
             self.book_reference,  # str | None
         )
 
-    @staticmethod
-    def _format_world_context(response: Dict) -> str:
-        """ bring llm response into target str format """
-        lines = ["# Novel World Context\n"]
-        for key, value in response.items():
-            # transform snake_case key to markdown header: scene_end_state -> ## SCENE END STATE
-            header = "## " + key.upper().replace("_", " ")
-            lines.append(f"{header}\n{value}")
-        return "\n\n".join(lines)
-
     def _process_world_context(self):
         """ steer world context creation with llm call and save to json """
         try:
@@ -156,7 +145,7 @@ class BookProcessor:
             self.logger.exception("Failed process creating world context...")
             raise
         # bring response into target .md format, count tokens and log
-        wc = self._format_world_context(wc)
+        wc = format_llm_response(wc, "Novel World Context")
         amount_tokens = len(TOKENIZER.encode(wc))
         self.logger.info(f"World Context: Total amount tokens in final format: {amount_tokens}")
         # save & write to json

@@ -18,7 +18,7 @@ from src.config import (
     TOKENIZER, MODEL_REGISTRY, BaseLLM, SummaryConfig, Book, Scene, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
-from src.utils import parse_range, init_logger
+from src.utils import parse_range, init_logger, format_llm_response
 from typing import Dict, Tuple
 import logging
 
@@ -254,19 +254,6 @@ class SummaryProcessor:
             self.stats,
         )
 
-    @staticmethod
-    def _format_running_summary(response: Dict) -> str:
-        """
-        - take running summary as python dict and map into target .md styled str format
-        - stay in sync to ## .md format of earlier generated content: scenes, world_context
-        """
-        lines = ["# Running Summary\n"]
-        for key, value in response.items():
-            # transform snake_case key to markdown header: scene_end_state -> ## SCENE END STATE
-            header = "## " + key.upper().replace("_", " ")
-            lines.append(f"{header}: {value}")
-        return "\n".join(lines)
-
     def _set_root_summary(self) -> None:
         """
         - set root summary at first scene manually
@@ -277,7 +264,7 @@ class SummaryProcessor:
         # get root narrative or reference summary depending on scene instruction attribute
         is_narrative = True if first_scene.instruction != "special" else False
         root = get_root_summary_narrative() if is_narrative else get_root_summary_reference()
-        root = self._format_running_summary(root.model_dump())
+        root = format_llm_response(root.model_dump(), "Running Summary")
         first_scene.running_summary = root
 
     def _process_scenes(self, scene_range: Tuple):
@@ -308,7 +295,7 @@ class SummaryProcessor:
                 self.logger.exception(f"Failed process scene {current_scene.scene_id}")
                 raise
             # bring dict response into target .md format to save at json scene
-            new_running_summary = self._format_running_summary(new_running_summary)
+            new_running_summary = format_llm_response(new_running_summary, "Running Summary")
             # log amount tokens of summary in target format & save to stats
             amount_tokens = len(TOKENIZER.encode(new_running_summary))
             self.logger.info(f"Total amount tokens: {amount_tokens}")

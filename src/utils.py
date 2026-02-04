@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import sys
 import logging
+from typing import Dict
 
 
 def parse_range(value: str) -> tuple[int, int]:
@@ -56,3 +57,13 @@ def init_logger(operation_type: str, debug_dir: str, book_name: str) -> logging.
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     return logger
+
+
+def format_llm_response(response: Dict, headline: str) -> str:
+    """ take dict type llm responses and bring them into final .md format """
+    lines = [f"# {headline}\n"]
+    for key, value in response.items():
+        # transform snake_case key to markdown header: scene_end_state -> ## SCENE END STATE
+        header = "## " + key.upper().replace("_", " ")
+        lines.append(f"{header}: {value}")
+    return "\n".join(lines)
