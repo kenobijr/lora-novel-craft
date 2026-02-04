@@ -35,7 +35,6 @@ class SceneSplitterLLM(BaseLLM):
             stats: SceneStats,
     ):
         super().__init__(config, logger)
-        
         self.wc = world_context
         self.stats = stats
 

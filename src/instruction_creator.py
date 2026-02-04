@@ -1,3 +1,10 @@
+"""
+Instruction Tuning: for each semantic scene construct the specific instruction, *that would have
+prompted it* in the respective context.
+- query llm with world_context, novel_progress, running summary, scene text and author-ai persona
+- reference scenes are deleted before this stage - after going into running summaries, if existing
+"""
+
 import json
 import argparse
 import os
@@ -25,7 +32,7 @@ class InstructionCreatorLLM(BaseLLM):
     ):
         super().__init__(config, logger)
         self.wc = world_context
-        # load inference systemmessage to add it as metadata content to prompt
+        # load inference systemmessage (author-ai) to add it as metadata content to prompt
         with open(self.cfg.inference_systemmessage, mode="r", encoding="utf-8") as f:
             self.inference_systemmessage = f.read()
         self.stats = stats
@@ -61,7 +68,6 @@ NOVEL PROGRESS: {novel_progress}%
     def create_instruction(self, scene: Scene, novel_progress: int):
         prompt = self._construct_prompt(scene, novel_progress)
         for attempt in range(self.cfg.json_parse_retries):
-            # log full prompt to logfile before llm query
             self.logger.debug(
                 f"\n=== INSTRUCTION CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
                 f"{prompt}\n"
@@ -81,26 +87,20 @@ NOVEL PROGRESS: {novel_progress}%
                 },
                 **MODEL_REGISTRY.get(self.cfg.llm, {}),
             )
-            # grab content in raw json for logging
             result_content = response.choices[0].message.content
-            # log llm response before parsing / formatting
             self.logger.debug(
                 f"\n=== INSTRUCTION CREATION: SCENE {scene.scene_id} RESPONSE START ===\n"
                 f"{result_content}\n"
                 f"=== INSTRUCTION CREATION: SCENE {scene.scene_id} RESPONSE END ==="
             )
-            # catch json deserialize error
             try:
-                # parse into python dict rep & count words
                 result = json.loads(result_content)
                 break
-            # at this certain error try 1x again with same prompt & log warning; next time: crash it
             except json.JSONDecodeError as e:
                 if attempt == 0:
                     self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
                     continue
                 raise
-        # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"Instruction: LLM response amount words: {total_words}")
         self.stats.created += 1
@@ -144,6 +144,7 @@ class InstructionProcessor:
         self.logger.info("---------------------------------------------")
 
     def _process_scenes(self, scene_range: Tuple[int, int]) -> None:
+        """ generate instruction scene for scene and write to json every iteration """
         len_scenes = len(self.book_content.scenes)
         for i in range(scene_range[0], scene_range[1]):
             current_scene = self.book_content.scenes[i]
@@ -162,7 +163,7 @@ class InstructionProcessor:
             amount_tokens = len(TOKENIZER.encode(new_instruction))
             self.logger.info(f"Total amount tokens: {amount_tokens}")
             self.stats.total_tokens += amount_tokens
-            # if tokens greater than boundary just log
+            # if tokens greater than boundary log it
             if amount_tokens > self.cfg.max_tokens:
                 self.stats.too_large += 1
             current_scene.instruction = new_instruction
