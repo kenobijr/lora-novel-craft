@@ -21,19 +21,13 @@ import argparse
 import json
 import os
 from src.config import (
-    API_KEY, Book, Scene, TOKENIZER, SummaryConfig, RunningSummary, SummaryStats,
+    API_KEY, TOKENIZER, MODEL_REGISTRY, Book, Scene, SummaryConfig, RunningSummary, SummaryStats,
     get_root_summary_narrative, get_root_summary_reference
 )
 from src.utils import parse_range, init_logger
 from openai import OpenAI
 from typing import Dict, Tuple
 import logging
-
-# llm model = openrouter id
-LLM = "google/gemini-2.0-flash-lite-001"
-# "google/gemini-2.5-pro"
-# "qwen/qwen-2.5-72b-instruct"
-# "google/gemini-2.0-flash-lite-001"
 
 
 class SummaryCreatorLLM:
@@ -153,7 +147,7 @@ Cut repetition and scene logistics first.
                     f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT END ==="
                 )
                 compressed_response = self.client.chat.completions.create(
-                    model=LLM,
+                    model=self.cfg.llm,
                     messages=[{"role": "user", "content": adapted_prompt}],
                     temperature=0.5,  # higher vs. summary creation -> must express in other words
                     response_format={
@@ -164,12 +158,7 @@ Cut repetition and scene logistics first.
                             "schema": RunningSummary.model_json_schema()
                         }
                     },
-                    # # only needed for qwen3!!!
-                    # extra_body={
-                    #     "provider": {
-                    #         "only": ["DeepInfra"]
-                    #     }
-                    # }
+                    **MODEL_REGISTRY.get(self.cfg.llm, {}),
                 )
                 # grab content in raw json for logging
                 compressed_content = compressed_response.choices[0].message.content
@@ -222,7 +211,7 @@ Cut repetition and scene logistics first.
                 f"=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT END ==="
             )
             response = self.client.chat.completions.create(
-                model=LLM,
+                model=self.cfg.llm,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
                 response_format={
@@ -233,12 +222,7 @@ Cut repetition and scene logistics first.
                         "schema": RunningSummary.model_json_schema()
                     }
                 },
-                # # only needed for qwen3!!!
-                # extra_body={
-                #     "provider": {
-                #         "only": ["DeepInfra"]
-                #     }
-                # }
+                **MODEL_REGISTRY.get(self.cfg.llm, {}),
             )
             # grab content in raw json for logging
             result_content = response.choices[0].message.content
@@ -395,7 +379,7 @@ class SummaryProcessor:
         self.logger.info(f"Max words: {self.cfg.max_words}")
         self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
         self.logger.info(f"Max compress attempts: {self.cfg.max_compress_attempts}")
-        self.logger.info(f"LLM used: {LLM}")
+        self.logger.info(f"LLM used: {self.cfg.llm}")
         self.logger.info("---------------------------------------------")
 
     def run(self, scene_range: Tuple[int, int] | None = None) -> None:

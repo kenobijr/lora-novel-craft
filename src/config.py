@@ -18,16 +18,28 @@ if not API_KEY:
 
 TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
 
+# ------------------ MODELS -------------------
+# openrouter id
+MODEL_REGISTRY = {
+    "google/gemini-2.0-flash-lite-001": {},
+    "google/gemini-2.5-flash": {},
+    "google/gemini-2.5-pro": {},
+    "qwen/qwen-2.5-72b-instruct": {"extra_body": {"provider": {"only": ["DeepInfra"]}}},
+}
+
 # ------------------ BOOK CREATION LOGIC ------------------
 
 
 class BookConfig(BaseModel):
+    # operation
     operation_name: str = "book_creation"
     output_dir: str = "./data/json/base"
     debug_dir: str = "./data/debug/book"
-    # prompts world context creation
+    # prompts
     prompt_system: str = "./prompts/world_context/systemmessage.md"
     prompt_instruction: str = "./prompts/world_context/instruction.md"
+    # llm / api
+    llm: str = "google/gemini-2.5-pro"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
@@ -72,13 +84,16 @@ class WorldContext(BaseModel):
 
 
 class SceneConfig(BaseModel):
-    """ scene creation config params """
+    # operation
     operation_name: str = "semantic_scene"
     scene_max_tokens: int = 3000  # max token restraint for target semantic scenes
     chunk_min_tokens: int = 75  # min token restraint any text chunk must fullfil
+    debug_dir: str = "./data/debug/scene"
+    # prompts
     prompt_system: str = "./prompts/scene/systemmessage.md"
     prompt_instruction: str = "./prompts/scene/instruction.md"
-    debug_dir: str = "./data/debug/scene"
+    # llm / api
+    llm: str = "qwen/qwen-2.5-72b-instruct"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
@@ -111,16 +126,18 @@ class ScenePartitioning(BaseModel):
 # ------------------ RUNNING SUMMARY CREATION LOGIC ------------------
 
 class SummaryConfig(BaseModel):
-    """ running summary creation config params """
+    # operation
     operation_name: str = "running_summary"
     max_tokens: int = 400  # token range (final formatted str)
     max_words: int = 200  # word range (raw json dict values summed up (no keys / signs / ...)
     max_words_buffer: int = 40  # allowed overshoot for word range
+    debug_dir: str = "./data/debug/summary"
+    # prompts
     prompt_system: str = "./prompts/summary/systemmessage.md"
     prompt_instruction_narrative: str = "./prompts/summary/instruction_narrative.md"
     prompt_instruction_reference: str = "./prompts/summary/instruction_reference.md"
-    debug_dir: str = "./data/debug/summary"
-    # api / llm
+    # llm / api
+    llm: str = "google/gemini-2.0-flash-lite-001"
     max_compress_attempts: int = 3
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
     api_base_url: str = "https://openrouter.ai/api/v1"
@@ -181,20 +198,21 @@ def get_root_summary_reference() -> RunningSummary:
 
 
 class InstructionConfig(BaseModel):
+    # operation
     operation_name: str = "instruction_tuning"
     max_tokens: int = 100  # token range (final formatted str)
     max_words: int = 80
-    # prompts to use for create instruction llm calls
+    debug_dir: str = "./data/debug/instruction"
+    # prompts used to setup create instruction llm calls
     prompt_system: str = "./prompts/instruction/systemmessage.md"
     prompt_instruction: str = "./prompts/instruction/instruction.md"
-    # inference systemmessage to be added as metadata to llm calls
+    # inference systemmessage to be added as context at create instruction llm calls
     inference_systemmessage: str = "./prompts/inference/systemmessage.md"
-    # url / api
+    # llm / api
+    llm: str = "google/gemini-2.0-flash-lite-001"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # openai sdk param
     json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
-    # debug
-    debug_dir: str = "./data/debug/instruction"
 
 
 class InstructionStats(BaseModel):

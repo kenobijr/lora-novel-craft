@@ -4,16 +4,11 @@ import os
 from openai import OpenAI
 from src.utils import parse_range, init_logger
 from src.config import (
-    API_KEY, TOKENIZER, InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
+    API_KEY, TOKENIZER, MODEL_REGISTRY,
+    InstructionConfig, Book, Scene, SceneInstruction, InstructionStats
 )
 from typing import Tuple, Dict
 import logging
-
-# llm model = openrouter id
-LLM = "google/gemini-2.0-flash-lite-001"
-# "google/gemini-2.5-pro"
-# "qwen/qwen-2.5-72b-instruct"
-# "google/gemini-2.0-flash-lite-001"
 
 
 class InstructionCreatorLLM:
@@ -80,7 +75,7 @@ NOVEL PROGRESS: {novel_progress}%
                 f"=== INSTRUCTION CREATION: SCENE {scene.scene_id} PROMPT END ==="
             )
             response = self.client.chat.completions.create(
-                model=LLM,
+                model=self.cfg.llm,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
                 response_format={
@@ -91,12 +86,7 @@ NOVEL PROGRESS: {novel_progress}%
                         "schema": SceneInstruction.model_json_schema()
                     }
                 },
-                # # only needed for qwen3!!!
-                # extra_body={
-                #     "provider": {
-                #         "only": ["DeepInfra"]
-                #     }
-                # }
+                **MODEL_REGISTRY.get(self.cfg.llm, {}),
             )
             # grab content in raw json for logging
             result_content = response.choices[0].message.content
@@ -169,7 +159,7 @@ class InstructionProcessor:
         self.logger.info("---------------------------------------------")
         self.logger.info(f"Max tokens: {self.cfg.max_tokens}")
         self.logger.info(f"Max words: {self.cfg.max_words}")
-        self.logger.info(f"LLM used: {LLM}")
+        self.logger.info(f"LLM used: {self.cfg.llm}")
         self.logger.info("---------------------------------------------")
 
     def _process_scenes(self, scene_range: Tuple[int, int]) -> None:

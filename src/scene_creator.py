@@ -12,26 +12,17 @@ import os
 import re
 import json
 import argparse
-from src.config import API_KEY, TOKENIZER, SceneConfig, Book, Scene, ScenePartitioning, SceneStats
+from src.config import (
+    API_KEY, TOKENIZER, MODEL_REGISTRY, SceneConfig, Book, Scene, ScenePartitioning, SceneStats
+)
 from src.utils import parse_range, init_logger
 import logging
 from openai import OpenAI
 from typing import List, Tuple
 
 
-# llm model = openrouter id
-LLM = "qwen/qwen-2.5-72b-instruct"
-# "google/gemini-2.5-pro"
-# "qwen/qwen-2.5-72b-instruct"
-# "google/gemini-2.0-flash-lite-001"
-
-
 class SceneSplitterLLM:
-    """
-    - handles llm related logic: model / api / key / connections / ...
-    - world_context directly delivered as str -> book metadata needed for llm call
-    - manages & formats prompts / systemmessages
-    """
+    """ handles llm related logic: model / api / key / connections / ... """
     def __init__(
             self,
             config: SceneConfig,
@@ -105,7 +96,7 @@ class SceneSplitterLLM:
                 f"=== CHAPTER PARTITIONING: Chapter # {chapter_idx} PROMPT END ==="
             )
             response = self.client.chat.completions.create(
-                model=LLM,
+                model=self.cfg.llm,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 response_format={
@@ -116,12 +107,7 @@ class SceneSplitterLLM:
                         "schema": ScenePartitioning.model_json_schema()
                     }
                 },
-                # fits only on qwen3!!!
-                extra_body={
-                    "provider": {
-                        "only": ["DeepInfra"]
-                    }
-                }
+                **MODEL_REGISTRY.get(self.cfg.llm, {}),
             )
             # grab content in raw json for logging
             result_content = response.choices[0].message.content
@@ -374,7 +360,7 @@ class SceneProcessor:
         self.logger.info("---------------------------------------------")
         self.logger.info(f"Semantic Scene max token: {self.cfg.scene_max_tokens}")
         self.logger.info(f"Text Chunk min token: {self.cfg.chunk_min_tokens}")
-        self.logger.info(f"LLM used: {LLM}")
+        self.logger.info(f"LLM used: {self.cfg.llm}")
 
     def run(self, chapter_range: Tuple[int, int] | None = None) -> None:
         """

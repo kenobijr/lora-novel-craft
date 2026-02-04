@@ -13,7 +13,7 @@ Convert .md book into base .json book file, split text along chapters and create
 """
 
 import argparse
-from src.config import BookConfig, Book, BookMeta, API_KEY, TOKENIZER, WorldContext
+from src.config import BookConfig, Book, BookMeta, WorldContext, API_KEY, TOKENIZER, MODEL_REGISTRY
 from src.utils import init_logger
 import logging
 import os
@@ -21,13 +21,6 @@ import re
 import json
 from openai import OpenAI
 from typing import Dict
-
-# llm model = openrouter id
-LLM = "google/gemini-2.5-flash"
-# "google/gemini-2.5-pro"
-# "qwen/qwen-2.5-72b-instruct"
-# "google/gemini-2.0-flash-lite-001"
-# "google/gemini-2.5-flash"
 
 
 class WorldContextLLM:
@@ -88,7 +81,7 @@ class WorldContextLLM:
                 f"=== WORLD CONTEXT CREATION: PROMPT END ==="
             )
             response = self.client.chat.completions.create(
-                model=LLM,
+                model=self.cfg.llm,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
                 response_format={
@@ -99,12 +92,8 @@ class WorldContextLLM:
                         "schema": WorldContext.model_json_schema()
                     }
                 },
-                # # only needed for qwen3!!!
-                # extra_body={
-                #     "provider": {
-                #         "only": ["DeepInfra"]
-                #     }
-                # }
+                # load additional cfg from registry for certain models
+                **MODEL_REGISTRY.get(self.cfg.llm, {})
             )
             # grab content in raw json for logging
             result_content = response.choices[0].message.content
@@ -231,7 +220,7 @@ class BookProcessor:
         self.logger.info("---------------------------------------------")
         self.logger.info("Creating world context ...")
         self._process_world_context()
-        self.logger.info(f"LLM used to generate World Context: {LLM}")
+        self.logger.info(f"LLM used to generate World Context: {self.cfg.llm}")
         self.logger.info("------Operation completed successfully-------")
 
 
