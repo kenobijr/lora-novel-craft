@@ -134,7 +134,7 @@ class SummaryConfig(BaseModel):
     debug_dir: str = "./data/debug/summary"
     # prompts
     prompt_system: str = "./prompts/summary/systemmessage.md"
-    prompt_instruction_narrative: str = "./prompts/summary/instruction_narrative.md"
+    prompt_instruction: str = "./prompts/summary/instruction_narrative.md"
     prompt_instruction_reference: str = "./prompts/summary/instruction_reference.md"
     # llm / api
     llm: str = "google/gemini-2.0-flash-lite-001"

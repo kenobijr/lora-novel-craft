@@ -1,20 +1,14 @@
 """
 Compress states of novel narrative into Running Summaries (like LSTM but in natural language) along
-Semantic Scenes as timesteps. Each Semantic Scene's Running Summary attribute contains compressed
-Narrative: what happened so far up to this specific Semantic Scene?
-Process:
-- Create Root Summary for scene 1 with empty "story begins" values
-- Take world context + running summary current scene (n) + text current scene (n) & construct prompt
-- Query LLM with JSON response enforcement schema
-- If LLM "create summary" response too long:
-  - Execute follow-up LLM compress calls on the previous response content
-  - Higher temperature compared to "create summary" calls
-  - Try up to 3 times using same input
-- If all compress calls fail to deliver response under token threshold
-  - Take response of last compress call
-  - Log violation
-- Map LLM response into final str format and save at book json scene obj
-- Take this new gen running summary to construct prompt to create running summary for next scene...
+Semantic Scenes as timesteps. Each Semantic Scene's Running Summary contains compressed Narrative:
+what happened so far up to this specific Semantic Scene?
+process:
+- create root summary for scene 1 with empty "story begins" values
+- take world context + running summary current scene (n) + text current scene (n), construct prompt
+and query llm to produce running summary to be attached to following scene n+1:
+- if response too long, do follow-up llm compress call with previous response content (2x max)
+- repeat process until reaching last scene -> since no following scene exists, process stops here
+- differentiate between narrative & reference scenes -> distinct prompts & root summaries used
 """
 
 import argparse
@@ -44,7 +38,7 @@ class SummaryCreatorLLM:
         # load prompts
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
             self.prompt_system = f.read()
-        with open(self.cfg.prompt_instruction_narrative, mode="r", encoding="utf-8") as f:
+        with open(self.cfg.prompt_instruction, mode="r", encoding="utf-8") as f:
             self.prompt_instruction_nar = f.read()
         with open(self.cfg.prompt_instruction_reference, mode="r", encoding="utf-8") as f:
             self.prompt_instruction_ref = f.read()
@@ -65,9 +59,8 @@ class SummaryCreatorLLM:
             is_narrative: bool
     ) -> str:
         """
-        - construct prompt for case "summary creation" on base of .md prompt files
-        - content from this script added to .md prompt files:
-            - world_context, novel_progress, running summary, scene text
+        - include world_context, novel_progress, running summary, scene text
+        - differentiate between narrative & reference scenes
         """
         prompt_instruction = (
             self.prompt_instruction_nar
@@ -98,10 +91,7 @@ NOVEL PROGRESS: {novel_progress}%
 """
 
     def _construct_prompt_compress(self, prompt: str, response: Dict, amount_words: int) -> str:
-        """
-        - construct prompt for case "compress summary" on base of previous summary prompt & response
-        - no .md prompt files in this special case, instead all defined in this method
-        """
+        """ prompt for case "compress summary" on base of previous summary prompt & llm response """
         return f"""
 <system>
 {self.prompt_system}
@@ -130,17 +120,15 @@ Cut repetition and scene logistics first.
             amount_words: int
     ) -> Dict:
         """
-        - if llm created running summary was greater than allowed max words, compress it
-        - send prompt & response to llm again and instruct it to compress the responsed
-        - do max x runs (defined in cfg) using same prompt each time for well compressed response
-        - 1x retry loop for invalid response (gemini glitch) for each run
+        - if running summary response greater than allowed max words, content must be compressed
+        - send prompt & response to llm again with special instruction added
+        - do max x runs (defined in cfg) using same prompt each time
+        - if compressed response < token threshold, return; otherwise return last comp response
         """
         adapted_prompt = self._construct_prompt_compress(prompt, response, amount_words)
-        # max x runs to get well compressed summary; response len decisive if break loop or continue
+        # max x runs to get compressed summary; break with return depending on response len
         for run in range(self.cfg.max_compress_attempts):
-            # max 1 retry per run for json error: response format decisive if break loop or continue
             for attempt in range(self.cfg.json_parse_retries):
-                # log full prompt to logfile before llm query
                 self.logger.debug(
                     f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT START ===\n"
                     f"{adapted_prompt}\n"
@@ -160,17 +148,13 @@ Cut repetition and scene logistics first.
                     },
                     **MODEL_REGISTRY.get(self.cfg.llm, {}),
                 )
-                # grab content in raw json for logging
                 compressed_content = compressed_response.choices[0].message.content
-                # log llm response before parsing / formatting
                 self.logger.debug(
                     f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE START ===\n"
                     f"{compressed_content}\n"
                     f"=== SUMMARY COMPRESSION: SCENE {scene.scene_id} RESPONSE END ==="
                 )
-                # catch json deserialize error
                 try:
-                    # parse into python dict rep & count words
                     compressed_result = json.loads(compressed_content)
                     break
                 except json.JSONDecodeError as e:
@@ -199,12 +183,13 @@ Cut repetition and scene logistics first.
     ) -> dict:
         """
         - prompt llm to create updated running summary for scene
-        - if response > max words, do max. 2 trimming llm calls with adapted prompt
+        - if response too large (> max words), send prompt & response to method _compress_summary
+        - in this case: use return value from _compress_summary as final running summary
         - 1x retry loop with exception control flow for invalid json format response (gemini glitch)
         """
         prompt = self._construct_prompt_create(scene, novel_progress, is_narrative)
+        # max 1 retry per run for json error: response format decisive if break loop or continue
         for attempt in range(self.cfg.json_parse_retries):
-            # log full prompt to logfile before llm query
             self.logger.debug(
                 f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
                 f"{prompt}\n"
@@ -253,18 +238,14 @@ Cut repetition and scene logistics first.
             result = self._compress_summary(scene, prompt, result, total_words)
         # count words final response (compressed or not) to save at stats word counter
         self.stats.total_words += sum(len(str(v).split()) for v in result.values())
-        # finally return result in any case
+        # finally return result -> even if 
         return result
 
 
 class SummaryProcessor:
     def __init__(self, book_path: str, config=None):
-        # enable init with argument for testing; normal case create SceneConfig obj from config.py
         self.cfg = config if config is not None else SummaryConfig()
-        # save path of book
         self.book_path = book_path
-        # save name of book file for logging
-        # load book json & map into pydantic obj
         with open(book_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
         # setup logfile & init logger with it
@@ -304,7 +285,6 @@ class SummaryProcessor:
         is_narrative = True if first_scene.instruction != "special" else False
         root = get_root_summary_narrative() if is_narrative else get_root_summary_reference()
         root = self._format_running_summary(root.model_dump())
-        # safe at 1st scene
         first_scene.running_summary = root
 
     def _process_scenes(self, scene_range: Tuple):
@@ -312,6 +292,7 @@ class SummaryProcessor:
         - process scenes specified in range to create running summary for the following scene
         - (0, 3) processes scenes 0, 1, 2 -> scene 3 not processed, but receives final summary
         - distinguish scene type: narrative vs. reference -> reference instruction value = "special"
+        - save & write to json book file at the end of processing scene
         """
         len_scenes = len(self.book_content.scenes)
         for i in range(scene_range[0], scene_range[1]):
@@ -400,7 +381,7 @@ class SummaryProcessor:
             if scene_range[0] >= scene_range[1]:
                 raise ValueError("start must be < end")
         self.logger.info(f"Starting process book: {self.book_content.meta.title} ...")
-        # check if roots summary needs to be inserted at 1st scene
+        # roots summary needs to be manually inserted only at 1st scene
         if scene_range[0] == 0:
             self.logger.info("Setting root summary at 1st scene manually ...")
             self._set_root_summary()

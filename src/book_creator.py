@@ -1,15 +1,11 @@
 """
-Convert .md book into base .json book file, split text along chapters and create World Context file
+Convert .md book into base .json book file, split text along chapters and create World Context file.
 - input .md file:
     - all chapter headers must be like "# Chapter 1" or "Chapter 1: Some Title" as content anchors
 - book_id arg:
-    - must contain the name of the author followed by the title of the book (sep. by "-")
-    - all smallcaps and with _, e.g.: "iron_heel_london" for The Iron Heel by Jack London
+    - must contain author_title combination str; all smallcaps; sep: _; e.g.: "iron_heel_london"
 - reference .md file (optional):
     - provide additional reference content to be used for world context creation
-- world context creation:
-    - query llm to compress narrative (+ optional ref material) into "world constitution"
-    - json response schema enforcement
 """
 
 import argparse
@@ -24,6 +20,7 @@ from typing import Dict
 
 
 class WorldContextLLM:
+    """ handles llm related logic: model / api / key / connections / ... """
     def __init__(
         self,
         config: BookConfig,
@@ -32,7 +29,9 @@ class WorldContextLLM:
         logger: logging.Logger,
     ):
         self.cfg = config
+        # novel text as str
         self.book_content = book_content
+        # additional novel reference material as str (optional)
         self.book_reference = book_reference
         # load prompts
         with open(self.cfg.prompt_system, mode="r", encoding="utf-8") as f:
@@ -72,7 +71,6 @@ class WorldContextLLM:
 
     def create_world_context(self):
         prompt = self._construct_prompt()
-
         for attempt in range(self.cfg.json_parse_retries):
             # log full prompt to logfile before llm query
             self.logger.debug(
@@ -210,6 +208,11 @@ class BookProcessor:
             json.dump(self.book.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
 
     def run(self):
+        """
+        - load book .md file, extract narrative and split along chapter anchors
+        - create base json file with chapters text, write to json
+        - query llm with book text (+ optional ref material) to get world_context, save to json
+        """
         self.logger.info(f"Starting process book: {self.book_name} ...")
         self._create_book()
         self.logger.info("Processing chapters ...")

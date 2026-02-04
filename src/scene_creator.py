@@ -22,7 +22,6 @@ from typing import List, Tuple
 
 
 class SceneSplitterLLM:
-    """ handles llm related logic: model / api / key / connections / ... """
     def __init__(
             self,
             config: SceneConfig,

@@ -111,7 +111,7 @@ NOVEL PROGRESS: {novel_progress}%
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"Instruction: LLM response amount words: {total_words}")
         self.stats.created += 1
-        self.stats.total_words += sum(len(str(v).split()) for v in result.values())
+        self.stats.total_words += total_words
         return result
 
 
