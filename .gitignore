@@ -55,6 +55,9 @@ data/json/sum/*
 # json instruction
 data/json/ins/*
 !data/json/ins/Jack_London-The_Iron_Heel.json
+# jsonl final
+data/json/final/*
+!data/json/final/Jack_London-The_Iron_Heel.json
 
 # debug & archive
 data/debug

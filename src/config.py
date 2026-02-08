@@ -236,10 +236,19 @@ class SceneInstruction(BaseModel):
 class CompilerConfig(BaseModel):
     # operation
     operation_name: str = "compiling"
+    output_dir: str = "./data/json/final"
     max_tokens: int = 4096  # token limit (final formatted str) per row
     debug_dir: str = "./data/debug/compiling"
+    # prompts for compress running summary llm calls
+    prompt_system: str = "./prompts/compress/systemmessage.md"
+    prompt_instruction: str = "./prompts/compress/instruction.md"
     # inference systemmessage to be added as base to each row
     inference_systemmessage: str = "./prompts/inference/systemmessage.md"
+    # llm / api
+    llm: str = "google/gemini-2.0-flash-lite-001"
+    api_base_url: str = "https://openrouter.ai/api/v1"
+    api_max_retries: int = 3  # openai sdk param
+    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
 
 
 class CompileStats(BaseModel):
