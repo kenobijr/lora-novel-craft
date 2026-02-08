@@ -218,7 +218,6 @@ class InstructionConfig(BaseModel):
 
 
 class InstructionStats(BaseModel):
-    """ track instruction creation stats through the process to create final report at end """
     created: int = 0
     total_words: int = 0
     total_tokens: int = 0
@@ -231,8 +230,28 @@ class SceneInstruction(BaseModel):
     emotional_beat: str  # The dominant emotion of the scene
     constraints: str  # Location, time pressure, secrets in play, physical limitations
 
+# ---------------- DATA COMPILING LOGIC -----------------
+
+
+class CompilerConfig(BaseModel):
+    # operation
+    operation_name: str = "compiling"
+    max_tokens: int = 4096  # token limit (final formatted str) per row
+    debug_dir: str = "./data/debug/compiling"
+    # inference systemmessage to be added as base to each row
+    inference_systemmessage: str = "./prompts/inference/systemmessage.md"
+
+
+class CompileStats(BaseModel):
+    compiled: int = 0
+    total_words: int = 0
+    total_tokens: int = 0
+    too_large: int = 0
+
 
 # ------------------ BASE LLM CLASS --------------------
+
+
 class BaseLLM:
     """
     - provides base common init logic / params that all llm classes share to inherit from
