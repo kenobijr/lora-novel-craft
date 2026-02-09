@@ -26,7 +26,7 @@ def init_logger(operation_type: str, debug_dir: str, book_name: str) -> logging.
     """
     os.makedirs(debug_dir, exist_ok=True)
     ts = datetime.now().strftime("%H%M%S")
-    logfile_path = os.path.join(debug_dir, f"{book_name}_{operation_type}_{ts}.log")
+    logfile_path = os.path.join(debug_dir, f"{ts}_{book_name}_{operation_type}.log")
     # setup logger
     logger = logging.getLogger(operation_type)
     # set to debug at highest level
