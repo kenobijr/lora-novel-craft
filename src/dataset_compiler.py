@@ -70,7 +70,7 @@ NOVEL PROGRESS: {novel_progress}%
                 self.stats.too_large += 1
             self.stats.total_tokens += tokens
             sample = {"messages": messages}
-            with open(self.book_jsonl_path, mode="w", encoding="utf-8") as f:
+            with open(self.book_jsonl_path, mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(sample, ensure_ascii=False) + "\n")
             self.stats.compiled += 1
 

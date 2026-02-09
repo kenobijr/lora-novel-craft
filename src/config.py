@@ -121,7 +121,6 @@ class SceneStats(BaseModel):
     semantic_amount: int = 0  # total amount of all semantic scenes across all chapters
     semantic_tokens: int = 0  # total sum of tokens of all semantic scenes
     original_word_count: int = 0  # save for stats before updating it at book meta after processing
-    invalid_partitioning: int = 0  # can occur 1x at chapter-wise llm queries
 
 
 # scene splitting llm response format

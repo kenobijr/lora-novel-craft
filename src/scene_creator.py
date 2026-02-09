@@ -357,7 +357,6 @@ class SceneProcessor:
         self.logger.info(f"Gen {s.atomic_amount} Atomic Scenes; Avg: {atomic_avg:,.2f} tokens")
         semantic_avg = s.semantic_tokens / s.semantic_amount
         self.logger.info(f"Gen {s.semantic_amount} Semantic Scenes;Avg: {semantic_avg:,.2f} tokens")
-        self.logger.info(f"Invalid LLM partitionings (auto-corrected): {s.invalid_partitioning}")
         # print relevant params used for this ops
         self.logger.info("---------------------------------------------")
         self.logger.info(f"Semantic Scene max token: {self.cfg.scene_max_tokens}")
