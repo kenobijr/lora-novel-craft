@@ -25,7 +25,9 @@ TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-30B-A3B-Thinking-2507")
 MODEL_REGISTRY = {
     "google/gemini-2.0-flash-lite-001": {},
     "google/gemini-2.5-flash": {},
+    "google/gemini-2.5-flash-lite": {},
     "google/gemini-2.5-pro": {},
+    "openai/gpt-4.1-nano": {},
     "qwen/qwen-2.5-72b-instruct": {"extra_body": {"provider": {"only": ["DeepInfra"]}}},
 }
 
@@ -151,9 +153,9 @@ class SummaryConfig(BaseModel):
     prompt_instruction: str = "./prompts/summary/instruction_narrative.md"
     prompt_instruction_reference: str = "./prompts/summary/instruction_reference.md"
     # llm / api
-    llm: str = "google/gemini-2.0-flash-lite-001"
+    llm: str = "openai/gpt-4.1-nano"
     max_compress_attempts: int = 3
-    query_retry: int = 2  # retry on response errors
+    query_retry: int = 3  # retry on response errors
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
 

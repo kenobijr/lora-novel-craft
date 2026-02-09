@@ -10,21 +10,21 @@
 - You MUST derive ALL information ONLY from the provided content in this prompt. Do NOT use any external knowledge about this book, its characters, or world beyond this content.
 - **WARNING**: This book may be present in your training data. Extract ONLY what is explicitly stated in this reference section.
 
-### Field 1-3: LOCAL STATE RULES (max 60 words combined)
+### Field 1-3: LOCAL STATE (45-60 words combined)
 - Derived ONLY from this reference section — ignore previous state entirely:
-- scene_end_state: What type of reference material was just established (vocabulary, characters, historical frame, rules) | MAX 25 words
-- emotional_beat: The tone or atmosphere this reference material establishes for the narrative | MAX 15 words
-- immediate_tension: Any foreshadowing, warnings, or tensions hinted at in this reference | MAX 20 words
+- scene_end_state: What type of reference material was just established (vocabulary, characters, historical frame, rules). Be specific and concrete | 15-25 words
+- emotional_beat: The tone or atmosphere this reference material establishes for the narrative | 8-15 words
+- immediate_tension: Any foreshadowing, warnings, or tensions hinted at in this reference material | 11-20 words
 
-### Field 4-8: ACCUMULATED KNOWLEDGE RULES (max 140 words combined)
+### Field 4-8: ACCUMULATED KNOWLEDGE (135-145 words combined)
 - Merge previous reference knowledge WITH new reference content:
-- global_events: "[REFERENCE PHASE]" prefix + Key facts, rules, or definitions extracted from ALL reference sections so far | MAX 60 words
-- unresolved_threads: World rules, mysteries, or questions established but not yet explored in narrative | 1-5 items, MAX 35 words
-- world_state: The foundational setting, vocabulary, or rules now established | MAX 20 words
-- active_characters: "[NONE] - Reference phase; characters not yet active in narrative." | MAX 15 words
-- global_shift: What this implies for the reader (e.g., "Language barrier established," "Historical irony enabled") | MAX 20 words
+- global_events: "[REFERENCE PHASE]" prefix + Key facts, rules, or definitions extracted from ALL reference sections so far. Be exhaustive | 40-60 words
+- unresolved_threads: World rules, mysteries, or questions established but not yet explored in narrative | 1-5 items, 22-35 words
+- world_state: The foundational setting, vocabulary, or rules now established for the narrative | 11-20 words
+- active_characters: "[NONE] - Reference phase; characters not yet active in narrative." | 8-15 words
+- global_shift: What this implies for the reader (e.g., "Language barrier established," "Historical irony enabled") | 11-20 words
 
-**TOTAL OUTPUT: 180-200 words MAXIMUM. Exceeding 200 words = INVALID; Word count means JSON values only, excluding keys and formatting**
+**WORD BUDGET: 180-200 words MANDATORY. Below 180 = INVALID. Above 200 = INVALID. Word count = JSON values only, excluding keys and formatting. USE the full budget — every word under 180 is lost narrative context that degrades downstream scene generation.**
 
 ## OUTPUT FORMAT
 Return a valid JSON object matching this structure:
@@ -48,8 +48,8 @@ Before outputting JSON, verify:
 □ Fields 1-3 reflect ONLY this reference section — no carryover from previous
 □ Fields 4-8 reflect ACCUMULATED knowledge from all reference sections processed so far
 □ global_events starts with "[REFERENCE PHASE]" prefix
-□ Each field within its word limit
-□ Total output: 180-200 words (HARD MAX: 200)
+□ Each field within its word range (check BOTH min AND max)
+□ Total output: 180-200 words (HARD MIN: 180, HARD MAX: 200)
 □ Valid JSON with snake_case keys
 
-**ONE FAILURE = REJECT OUTPUT. Go back and fix.**
+**ONE FAILURE = REJECT OUTPUT. Below 180 or above 200 = INVALID. Go back and fix.**
