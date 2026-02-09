@@ -64,7 +64,7 @@ class WorldContextLLM(BaseLLM):
 
     def create_world_context(self):
         prompt = self._construct_prompt()
-        for attempt in range(self.cfg.json_parse_retries):
+        for attempt in range(self.cfg.query_retry):
             # log full prompt to logfile before llm query
             self.logger.debug(
                 f"\n=== WORLD CONTEXT CREATION: PROMPT START ===\n"

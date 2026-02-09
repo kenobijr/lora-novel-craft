@@ -121,7 +121,7 @@ Cut repetition and scene logistics first.
         adapted_prompt = self._construct_prompt_compress(prompt, response, amount_words)
         # max x runs to get compressed summary; break with return depending on response len
         for run in range(self.cfg.max_compress_attempts):
-            for attempt in range(self.cfg.json_parse_retries):
+            for attempt in range(self.cfg.query_retry):
                 self.logger.debug(
                     f"\n=== SUMMARY COMPRESSION: SCENE {scene.scene_id} PROMPT START ===\n"
                     f"{adapted_prompt}\n"
@@ -182,7 +182,7 @@ Cut repetition and scene logistics first.
         """
         prompt = self._construct_prompt_create(scene, novel_progress, is_narrative)
         # max 1 retry per run for json error: response format decisive if break loop or continue
-        for attempt in range(self.cfg.json_parse_retries):
+        for attempt in range(self.cfg.query_retry):
             self.logger.debug(
                 f"\n=== SUMMARY CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
                 f"{prompt}\n"

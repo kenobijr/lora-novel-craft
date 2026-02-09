@@ -81,7 +81,7 @@ class SceneSplitterLLM(BaseLLM):
         # create systemmessage using annotated text chunks
         prompt = self._create_prompt(self._annotate_text_chunks(text_chunks))
         # prompt llm
-        for attempt in range(self.cfg.json_parse_retries):
+        for attempt in range(self.cfg.query_retry):
             self.logger.debug(
                 f"\n=== CHAPTER PARTITIONING: Chapter # {chapter_idx} PROMPT START ===\n"
                 f"{prompt}\n"

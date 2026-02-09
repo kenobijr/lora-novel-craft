@@ -67,7 +67,7 @@ NOVEL PROGRESS: {novel_progress}%
 
     def create_instruction(self, scene: Scene, novel_progress: int):
         prompt = self._construct_prompt(scene, novel_progress)
-        for attempt in range(self.cfg.json_parse_retries):
+        for attempt in range(self.cfg.query_retry):
             self.logger.debug(
                 f"\n=== INSTRUCTION CREATION: SCENE {scene.scene_id} PROMPT START ===\n"
                 f"{prompt}\n"

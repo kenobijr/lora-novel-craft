@@ -44,7 +44,7 @@ class BookConfig(BaseModel):
     llm: str = "google/gemini-2.5-pro"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
-    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
+    query_retry: int = 2  # retry on response errors
 
 
 class BookMeta(BaseModel):
@@ -90,6 +90,7 @@ class SceneConfig(BaseModel):
     operation_name: str = "semantic_scene"
     scene_max_tokens: int = 2900  # max token restraint for target semantic scenes
     chunk_min_tokens: int = 75  # min token restraint any text chunk must fullfil
+    atomic_scene_max_tokens: int = 1500  # max token restraint for llm cut atomic scenes
     debug_dir: str = "./data/debug/scene"
     # prompts
     prompt_system: str = "./prompts/scene/systemmessage.md"
@@ -98,7 +99,7 @@ class SceneConfig(BaseModel):
     llm: str = "qwen/qwen-2.5-72b-instruct"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
-    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
+    query_retry: int = 2  # retry on response errors
 
 
 class SceneStats(BaseModel):
@@ -141,7 +142,7 @@ class SummaryConfig(BaseModel):
     # llm / api
     llm: str = "google/gemini-2.0-flash-lite-001"
     max_compress_attempts: int = 3
-    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
+    query_retry: int = 2  # retry on response errors
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
 
@@ -214,7 +215,7 @@ class InstructionConfig(BaseModel):
     llm: str = "google/gemini-2.0-flash-lite-001"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # openai sdk param
-    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
+    query_retry: int = 2  # retry on response errors
 
 
 class InstructionStats(BaseModel):
@@ -248,7 +249,7 @@ class CompilerConfig(BaseModel):
     llm: str = "google/gemini-2.0-flash-lite-001"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # openai sdk param
-    json_parse_retries: int = 2  # retries on json deserialize error (gemini glitch)
+    query_retry: int = 2  # retry on response errors
 
 
 class CompileStats(BaseModel):
