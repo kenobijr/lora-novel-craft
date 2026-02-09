@@ -97,7 +97,7 @@ NOVEL PROGRESS: {novel_progress}%
                 result = json.loads(result_content)
                 break
             except json.JSONDecodeError as e:
-                if attempt == 0:
+                if attempt < self.cfg.query_retry - 1:
                     self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
                     continue
                 raise

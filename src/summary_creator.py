@@ -151,7 +151,7 @@ Cut repetition and scene logistics first.
                     compressed_result = json.loads(compressed_content)
                     break
                 except json.JSONDecodeError as e:
-                    if attempt == 0:
+                    if attempt < self.cfg.query_retry - 1:
                         self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
                         continue
                     raise
@@ -215,9 +215,8 @@ Cut repetition and scene logistics first.
                 # parse into python dict rep & count words
                 result = json.loads(result_content)
                 break
-            # at this certain error try 1x again with same prompt & log warning; next time: crash it
             except json.JSONDecodeError as e:
-                if attempt == 0:
+                if attempt < self.cfg.query_retry - 1:
                     self.logger.warning(f"Invalid JSON response at scene {scene.scene_id}: {e}")
                     continue
                 raise
