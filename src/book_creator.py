@@ -1,9 +1,8 @@
 """
 Convert .md book into base .json book file, split text along chapters and create World Context file.
 - input .md file:
+    - input book file must come in syntax "author_name-some_title.md" to process name + title
     - all chapter headers must be like "# Chapter 1" or "Chapter 1: Some Title" as content anchors
-- book_id arg:
-    - must contain author_title combination str; all smallcaps; sep: _; e.g.: "iron_heel_london"
 - reference .md file (optional):
     - provide additional reference content to be used for world context creation
 """
@@ -52,7 +51,8 @@ class WorldContextLLM(BaseLLM):
 CRITICAL: You received following prompt earlier: {prompt}
 You generated the following World Context: {json.dumps(response, indent=2)}
 It has {amount_words} words (counting JSON values only).
-**The maximum is {self.cfg.max_words} words. You must cut at least {amount_words - self.cfg.max_words} words.**
+**The maximum is {self.cfg.max_words} words.
+You must cut at least {amount_words - self.cfg.max_words} words.**
 
 Compress each field while preserving:
 - Core world rules and power structures
@@ -198,11 +198,9 @@ Keep the same JSON field structure and format. Do not add or remove fields.
 
 
 class BookProcessor:
-    def __init__(self, input_book_path: str, book_id: str, input_ref_path: str, config=None):
+    def __init__(self, input_book_path: str, input_ref_path: str, config=None):
         self.cfg = config if config is not None else BookConfig()
         self.input_book_path = input_book_path
-        # unique identifier for book
-        self.book_id = book_id
         with open(input_book_path, mode="r", encoding="utf-8") as f:
             self.book_content = f.read()
         # optional ref material path -> if available, pass to llm wc creation
@@ -214,6 +212,11 @@ class BookProcessor:
         self.book_name = os.path.basename(self.input_book_path).removesuffix(".md")
         self.book_json_path = os.path.join(self.cfg.output_dir, f"{self.book_name}.json")
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, self.book_name)
+        # construct book id from book_name: pattern: title last name author
+        author, title = self.book_name.split("-", 1)
+        last_name = author.split("_")[-1]
+        self.book_id = f"{title}_{last_name}".lower()
+        # output book obj
         self.book = None
         # stats
         self.stats = BookStats()
@@ -311,8 +314,7 @@ class BookProcessor:
 def main():
     """
     cli entry point for converting .md novels into .json with narrative split into chapters
-    - Usage: python book_creator.py <input_book_path.md> <iron_heel_london> <input_ref_path.md>
-    - book_id: all smallcaps and with _, e.g.: "iron_heel_london" for The Iron Heel by Jack London
+    - Usage: python book_creator.py <input_book_path.md> <input_ref_path.md>
     - input_ref_path: optional, if meaningful reference content available
     """
     parser = argparse.ArgumentParser(description=main.__doc__)
@@ -321,16 +323,12 @@ def main():
         help="path to input book .md file",
     )
     parser.add_argument(
-        "book_id",
-        help="unique identifier for book; create some author title combination"
-    )
-    parser.add_argument(
         "input_ref_path",
         nargs="?",
         help="path to input ref material .md file",
     )
     args = parser.parse_args()
-    bp = BookProcessor(args.input_book_path, args.book_id, args.input_ref_path)
+    bp = BookProcessor(args.input_book_path, args.input_ref_path)
     bp.run()
 
 
