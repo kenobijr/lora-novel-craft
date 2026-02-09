@@ -66,7 +66,7 @@ NOVEL PROGRESS: {novel_progress}%
             # check again token threshold
             tokens = len(TOKENIZER.apply_chat_template(messages, tokenize=True))
             if tokens > self.cfg.max_tokens:
-                self.logger.warning(f"Too large: {tokens} tok at scene: {current_scene.scene_id}")
+                self.logger.warning(f"Too large: {tokens} tok; scene_id: {current_scene.scene_id}")
                 self.stats.too_large += 1
             self.stats.total_tokens += tokens
             sample = {"messages": messages}

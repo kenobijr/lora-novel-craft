@@ -10,9 +10,10 @@ Convert .md book into base .json book file, split text along chapters and create
 
 import argparse
 from src.config import (
-    BaseLLM, BookConfig, Book, BookMeta, WorldContext, TOKENIZER, MODEL_REGISTRY
+    BaseLLM, BookConfig, Book, BookMeta, WorldContext, TOKENIZER, MODEL_REGISTRY, BookStats
 )
 from src.utils import init_logger, format_llm_response
+from typing import Dict
 import logging
 import os
 import re
@@ -31,12 +32,92 @@ class WorldContextLLM(BaseLLM):
         logger: logging.Logger,
         book_content: str,
         book_reference: str | None,
+        stats: BookStats,
     ):
         super().__init__(config, logger)
         # novel text as str
         self.book_content = book_content
         # additional novel reference material as str (optional)
         self.book_reference = book_reference
+        self.stats = stats
+
+    def _construct_prompt_compress(self, prompt: str, response: Dict, amount_words: int) -> str:
+        """ prompt to compress an oversized world context response down to word limit """
+        return f"""
+<system>
+{self.prompt_system}
+</system>
+
+<instruction>
+CRITICAL: You received following prompt earlier: {prompt}
+You generated the following World Context: {json.dumps(response, indent=2)}
+It has {amount_words} words (counting JSON values only).
+**The maximum is {self.cfg.max_words} words. You must cut at least {amount_words - self.cfg.max_words} words.**
+
+Compress each field while preserving:
+- Core world rules and power structures
+- Sensory anchors that ground scene generation
+- Faction dynamics and spatial anchors
+
+Cut generic adjectives, redundant qualifiers and vague descriptions first.
+Keep the same JSON field structure and format. Do not add or remove fields.
+</instruction>
+"""
+
+    def _compress_wc(self, prompt: str, response: Dict, amount_words: int) -> Dict:
+        """
+        - if world context response greater than allowed max words, compress it
+        - send original prompt (with novel) + response to llm with compress instruction
+        - do max x runs (defined in cfg) using same prompt each time
+        - if compressed response < word threshold, return; otherwise return last response
+        """
+        adapted_prompt = self._construct_prompt_compress(prompt, response, amount_words)
+        self.stats.compressed = True
+        for run in range(self.cfg.max_compress_attempts):
+            for attempt in range(self.cfg.query_retry):
+                self.logger.debug(
+                    f"\n=== WC COMPRESSION: PROMPT START ===\n"
+                    f"{adapted_prompt}\n"
+                    f"=== WC COMPRESSION: PROMPT END ==="
+                )
+                compressed_response = self.client.chat.completions.create(
+                    model=self.cfg.llm,
+                    messages=[{"role": "user", "content": adapted_prompt}],
+                    temperature=0.5,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "world_context_creation",
+                            "strict": True,
+                            "schema": WorldContext.model_json_schema()
+                        }
+                    },
+                    **MODEL_REGISTRY.get(self.cfg.llm, {}),
+                )
+                compressed_content = compressed_response.choices[0].message.content
+                self.logger.debug(
+                    f"\n=== WC COMPRESSION: RESPONSE START ===\n"
+                    f"{compressed_content}\n"
+                    f"=== WC COMPRESSION: RESPONSE END ==="
+                )
+                try:
+                    compressed_result = json.loads(compressed_content)
+                    break
+                except json.JSONDecodeError as e:
+                    if attempt == 0:
+                        self.logger.warning(f"Invalid JSON at WC compression: {e}")
+                        continue
+                    raise
+            # count words from LLM response (dict values) & update stats
+            total_words = sum(len(str(v).split()) for v in compressed_result.values())
+            self.logger.info(f"WC compress run # {run}: LLM response amount words: {total_words}")
+            self.stats.compress_runs += 1
+            if total_words <= (self.cfg.max_words + self.cfg.max_words_buffer):
+                self.logger.info(f"WC compressed successfully after run # {run}")
+                self.stats.compressed_successfully = True
+                return compressed_result
+        self.logger.info(f"WC compression failed; returned last run # {run} as response.")
+        return compressed_result
 
     def _construct_prompt(self):
         """ add reference material content to prompt if available """
@@ -105,9 +186,15 @@ class WorldContextLLM(BaseLLM):
                     self.logger.warning("Invalid JSON response at world context creation")
                     continue
                 raise
+
         # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
         self.logger.info(f"World Context: LLM response amount words: {total_words}")
+        # if llm response not in total words constraint + buffer, compress it
+        if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
+            result = self._compress_wc(prompt, result, total_words)
+        # count words final response (compressed or not) to save at stats word counter
+        self.stats.total_words = sum(len(str(v).split()) for v in result.values())
         return result
 
 
@@ -129,12 +216,15 @@ class BookProcessor:
         self.book_json_path = os.path.join(self.cfg.output_dir, f"{self.book_name}.json")
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, self.book_name)
         self.book = None
+        # stats
+        self.stats = BookStats()
         # setup llm
         self.llm = WorldContextLLM(
             self.cfg,
             self.logger,
             self.book_content,
             self.book_reference,  # str | None
+            self.stats,
         )
 
     def _process_world_context(self):
@@ -153,7 +243,6 @@ class BookProcessor:
         with open(self.book_json_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
         self.logger.info(f"World context saved to file: {self.book_json_path}")
-        self.logger.info("---------------------------------------------")
 
     def _create_book(self):
         """
@@ -181,14 +270,20 @@ class BookProcessor:
         chapters = re.split(r"(?=^# Chapter)", self.book_content, flags=re.MULTILINE)
         # save cleaned str list (remove empty string at 1st pos from split before # Chapter 1)
         self.book.chapters = [i for i in chapters if i.strip()]
-        # safe book meta data depending on processed chapter text
-        self.book.meta.total_chapters = len(self.book.chapters)
-        self.book.meta.word_count = sum(len(chapter.split()) for chapter in self.book.chapters)
-        self.logger.info(f"Parsed {self.book.meta.total_chapters} chapters to json book file")
-        self.logger.info(f"Total words: {self.book.meta.word_count}")
         # write to json
         with open(self.book_json_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+        self.logger.info(f"Book JSON file written to: {self.book_json_path}")
+
+    def _create_report(self):
+        """ print report with stats collected during world context creation """
+        s = self.stats
+        self.logger.info(f"World Context final words: {s.total_words}")
+        self.logger.info(f"Compression needed: {s.compress_runs} runs")
+        self.logger.info(f"Compression successful: {s.compressed_successfully}")
+        self.logger.info(f"Max words: {self.cfg.max_words}")
+        self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
+        self.logger.info(f"LLM used: {self.cfg.llm}")
 
     def run(self):
         """
@@ -201,12 +296,16 @@ class BookProcessor:
         self.logger.info("Processing chapters ...")
         self.logger.info("---------------------------------------------")
         self._process_chapters()
-        self.logger.info("---------------------------------------------")
-        self.logger.info(f"Book JSON file written to: {self.book_json_path}")
+        # update book meta counters after chapter processing
+        self.book.meta.total_chapters = len(self.book.chapters)
+        self.book.meta.word_count = sum(len(chapter.split()) for chapter in self.book.chapters)
+        self.logger.info(f"Parsed {self.book.meta.total_chapters} chapters to json book file")
+        self.logger.info(f"Total words: {self.book.meta.word_count}")
         self.logger.info("---------------------------------------------")
         self.logger.info("Creating world context ...")
         self._process_world_context()
-        self.logger.info(f"LLM used to generate World Context: {self.cfg.llm}")
+        self.logger.info("---------------------------------------------")
+        self._create_report()
         self.logger.info("------Operation completed successfully-------")
 
 

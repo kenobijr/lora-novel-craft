@@ -37,11 +37,14 @@ class BookConfig(BaseModel):
     operation_name: str = "book_creation"
     output_dir: str = "./data/json/base"
     debug_dir: str = "./data/debug/book"
+    max_words: int = 270
+    max_words_buffer: int = 10
+    max_compress_attempts: int = 3
     # prompts
     prompt_system: str = "./prompts/world_context/systemmessage.md"
     prompt_instruction: str = "./prompts/world_context/instruction.md"
     # llm / api
-    llm: str = "google/gemini-2.5-pro"
+    llm: str = "google/gemini-2.5-flash"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
     query_retry: int = 2  # retry on response errors
@@ -72,6 +75,14 @@ class Book(BaseModel):
     scenes: List[Scene] = []
 
 
+class BookStats(BaseModel):
+    """ track world context creation stats """
+    total_words: int = 0  # final word count of world context
+    compressed: bool = False  # whether compression was needed
+    compress_runs: int = 0  # total compress attempts
+    compressed_successfully: bool = False  # whether compression brought it under limit
+
+
 class WorldContext(BaseModel):
     """ llm response schema for world context creation """
     tone_style: str  # Era/Genre / Atmosphere / Prose Voice / Sensory Anchors
@@ -88,7 +99,7 @@ class WorldContext(BaseModel):
 class SceneConfig(BaseModel):
     # operation
     operation_name: str = "semantic_scene"
-    scene_max_tokens: int = 2900  # max token restraint for target semantic scenes
+    scene_max_tokens: int = 2800  # max token restraint for target semantic scenes
     chunk_min_tokens: int = 75  # min token restraint any text chunk must fullfil
     atomic_scene_max_tokens: int = 1500  # max token restraint for llm cut atomic scenes
     debug_dir: str = "./data/debug/scene"
@@ -103,7 +114,6 @@ class SceneConfig(BaseModel):
 
 
 class SceneStats(BaseModel):
-    """ track semantic scene creation stats through the process to create final report at end """
     chunk_amount: int = 0  # total amount of all text chunks across all chapters
     chunk_tokens: int = 0  # total sum of tokens of all text chunks
     atomic_amount: int = 0  # total amount of all llm cut atomic scenes across all chapters

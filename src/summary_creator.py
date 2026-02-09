@@ -231,7 +231,6 @@ Cut repetition and scene logistics first.
             result = self._compress_summary(scene, prompt, result, total_words)
         # count words final response (compressed or not) to save at stats word counter
         self.stats.total_words += sum(len(str(v).split()) for v in result.values())
-        # finally return result -> even if 
         return result
 
 
