@@ -99,7 +99,7 @@ class SceneConfig(BaseModel):
     llm: str = "qwen/qwen-2.5-72b-instruct"
     api_base_url: str = "https://openrouter.ai/api/v1"
     api_max_retries: int = 3  # # openai sdk param
-    query_retry: int = 2  # retry on response errors
+    query_retry: int = 4  # retry on response / logical errors
 
 
 class SceneStats(BaseModel):

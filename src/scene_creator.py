@@ -71,13 +71,17 @@ class SceneSplitterLLM(BaseLLM):
 </instruction>
 """
 
-    def get_scene_boundaries(self, text_chunks: str, chapter_idx: int) -> List[int]:
+    def get_scene_boundaries(self, text_chunks: List[str], chapter_idx: int) -> List[int]:
         """
         - scene target size in tokens via prompt: 400 - 1000 tokens; ~600-800 goldilocks
         - annotate chapter text chunks into llm format and create prompt
         - llm response returns list of dict with n end_chunks for each atomic semantic scene
         - each end_chunk contains int as value, which relates to position of text chunk list
+        - enforce strict validation of response in retry loop
         """
+        # 1. re-calc token counts for validation
+        chunk_token_counts = [len(TOKENIZER.encode(chunk)) for chunk in text_chunks]
+        total_chunks = len(text_chunks)
         # create systemmessage using annotated text chunks
         prompt = self._create_prompt(self._annotate_text_chunks(text_chunks))
         # prompt llm
@@ -110,36 +114,42 @@ class SceneSplitterLLM(BaseLLM):
                 f"=== CHAPTER PARTITIONING: Chapter # {chapter_idx} RESPONSE END ==="
             )
             try:
+                # json parse errors can occur here
                 result = json.loads(result_content)
-                break
-            except json.JSONDecodeError as e:
-                if attempt == 0:
-                    self.logger.warning(f"Invalid JSON response at Chapter {chapter_idx}: {e}")
-                    continue
-                raise
-        # extract scene boundaries (cut llm intermediate data) and validate logically
-        boundaries = [scene["chunk_boundary"] for scene in result["scenes"]]
-        # 1. check strictly increasing -> current boundary must be greater than the one before
-        last = 0
-        for i, boundary in enumerate(boundaries):
-            if boundary <= last:
-                # no logging necessary -> exceptions from llm query caught & logged downstream
-                raise ValueError(f"Atomic Sem Scene {i}: boundary {boundary} <= previous {last}")
-            last = boundary
-        # 2. chunk_boundary of final scene must equal total amount of text chunks in chapter
-        # correct if llm calcs falsely; otherwise text could be lost
-        len_chunks = len(text_chunks)
-        if last < len_chunks:
-            diff = len_chunks - last
-            self.logger.info("---------------------------------------------")
-            self.logger.warning(f"LLM missed chunks: Ended at {last} vs. {len_chunks})")
-            self.stats.invalid_partitioning += 1
-            # force extend the very last scene to include the missing chunks
-            boundaries[-1] = len_chunks
-            self.logger.info(f"Auto-correct last chunk boundary completed for diff of {diff}")
-            self.logger.info("---------------------------------------------")
-        # return flattened list of chunk boundaries ints
-        return boundaries
+                # --- VALIDATION LOGIC START ---
+                # extract scene boundaries (cut llm intermediate data) and validate logically
+                boundaries = [scene["chunk_boundary"] for scene in result["scenes"]]
+                # gate 1: check strictly increasing boundaries
+                last_b = 0
+                for b in boundaries:
+                    if b <= last_b:
+                        raise ValueError(f"Boundaries not increasing: {b} <= {last_b}")
+                    if b > total_chunks:
+                        raise ValueError(f"Boundary num {b} exceeds total chunks {total_chunks}")
+                    last_b = b
+                # gate 2: check completeness (last boundary must match total chunks)
+                if boundaries[-1] != total_chunks:
+                    raise ValueError(f"Partition ends at {boundaries[-1]}; expected {total_chunks}")
+                # gate 3: check atomic scene size massive violations against prompt
+                prev_b = 0
+                for i, b in enumerate(boundaries):
+                    # sum tokens for this specific slice of chunks
+                    scene_tokens = sum(chunk_token_counts[prev_b:b])
+                    if scene_tokens > self.cfg.atomic_scene_max_tokens:
+                        raise ValueError(f"Scene {i+1} is too massive ({scene_tokens} tokens). ")
+                    prev_b = b
+                # If we get here, the partitioning is valid
+                return boundaries
+            except (json.JSONDecodeError, ValueError) as e:
+                # on allowed attempts: only log
+                self.logger.warning(
+                    f"Invalid JSON response at Chapter {chapter_idx}: {e}"
+                    f"Happened at Attempt # {attempt+1}"
+                )
+                # if all retries failed, crash app with exception
+                if attempt == self.cfg.query_retry - 1:
+                    self.logger.error(f"CRITICAL: all response attempts failed chap {chapter_idx}.")
+                    raise
 
 
 class SceneProcessor:
