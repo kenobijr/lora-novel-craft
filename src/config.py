@@ -88,7 +88,7 @@ class WorldContext(BaseModel):
 class SceneConfig(BaseModel):
     # operation
     operation_name: str = "semantic_scene"
-    scene_max_tokens: int = 3000  # max token restraint for target semantic scenes
+    scene_max_tokens: int = 2900  # max token restraint for target semantic scenes
     chunk_min_tokens: int = 75  # min token restraint any text chunk must fullfil
     debug_dir: str = "./data/debug/scene"
     # prompts
