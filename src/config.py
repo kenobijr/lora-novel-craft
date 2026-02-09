@@ -99,6 +99,7 @@ class WorldContext(BaseModel):
 class SceneConfig(BaseModel):
     # operation
     operation_name: str = "semantic_scene"
+    output_dir: str = "./data/json/scene"
     scene_max_tokens: int = 2800  # max token restraint for target semantic scenes
     chunk_min_tokens: int = 75  # min token restraint any text chunk must fullfil
     atomic_scene_max_tokens: int = 1500  # max token restraint for llm cut atomic scenes
@@ -140,6 +141,7 @@ class ScenePartitioning(BaseModel):
 class SummaryConfig(BaseModel):
     # operation
     operation_name: str = "running_summary"
+    output_dir: str = "./data/json/sum"
     max_tokens: int = 400  # token range (final formatted str)
     max_words: int = 200  # word range (raw json dict values summed up (no keys / signs / ...)
     max_words_buffer: int = 40  # allowed overshoot for word range
@@ -212,6 +214,7 @@ def get_root_summary_reference() -> RunningSummary:
 class InstructionConfig(BaseModel):
     # operation
     operation_name: str = "instruction_tuning"
+    output_dir: str = "./data/json/ins"
     max_tokens: int = 100  # token range (final formatted str)
     max_words: int = 80
     debug_dir: str = "./data/debug/instruction"

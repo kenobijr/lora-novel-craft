@@ -240,8 +240,10 @@ class SummaryProcessor:
         self.book_path = book_path
         with open(book_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
-        # setup logfile & init logger with it
+        # setup output path in stage-specific dir
         book_name = os.path.basename(book_path).removesuffix(".json")
+        self.output_path = os.path.join(self.cfg.output_dir, f"{book_name}.json")
+        # setup logfile & init logger with it
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
         # track stats for report creation at end
         self.stats = SummaryStats()
@@ -303,7 +305,7 @@ class SummaryProcessor:
                 self.stats.too_large += 1
             # save new running summary at following scene & save with pydantic json model dump
             next_scene.running_summary = new_running_summary
-            with open(self.book_path, mode="w", encoding="utf-8") as f:
+            with open(self.output_path, mode="w", encoding="utf-8") as f:
                 json.dump(
                     self.book_content.model_dump(mode="json"),
                     f,

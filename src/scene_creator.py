@@ -163,8 +163,10 @@ class SceneProcessor:
         # unpack dict from json.load into kw arguments -> 2. create pydantic book obj (=validate)
         with open(book_path, mode="r", encoding="utf-8") as f:
             self.book_content = Book(**json.load(f))
-        # setup logger & stats
+        # setup output path in stage-specific dir
         book_name = os.path.basename(book_path).removesuffix(".json")
+        self.output_path = os.path.join(self.cfg.output_dir, f"{book_name}.json")
+        # setup logger & stats
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
         self.stats = SceneStats(original_word_count=self.book_content.meta.word_count)
         self.llm = SceneSplitterLLM(
@@ -291,9 +293,9 @@ class SceneProcessor:
         for i, scene in enumerate(self.book_content.scenes, start=1):
             scene.scene_id = i
         # use pydantic json model dump method to write to json
-        with open(self.book_path, mode="w", encoding="utf-8") as f:
+        with open(self.output_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book_content.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
-        self.logger.info(f"Scenes of Chapter {chapter_idx} saved to {self.book_path}")
+        self.logger.info(f"Scenes of Chapter {chapter_idx} saved to {self.output_path}")
 
     def _process_chapters(self, chapter_range: Tuple[int, int]):
         """
@@ -392,7 +394,7 @@ class SceneProcessor:
         self.book_content.meta.total_scenes = len(self.book_content.scenes)
         # delete processed chapters & write final state to file
         del self.book_content.chapters[chapter_range[0]:chapter_range[1]]
-        with open(self.book_path, mode="w", encoding="utf-8") as f:
+        with open(self.output_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book_content.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
         # create closing report
         self._create_final_report()
