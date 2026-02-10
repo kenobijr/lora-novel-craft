@@ -79,8 +79,7 @@ class Book(BaseModel):
 
 class BookStats(BaseModel):
     """ track world context creation stats """
-    total_words: int = 0  # final word count of world context
-    compressed: bool = False  # whether compression was needed
+    wc_words: int = 0  # final word count of world context
     compress_runs: int = 0  # total compress attempts
     compressed_successfully: bool = False  # whether compression brought it under limit
 

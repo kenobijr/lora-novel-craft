@@ -72,7 +72,6 @@ Keep the same JSON field structure and format. Do not add or remove fields.
         - if compressed response < word threshold, return; otherwise return last response
         """
         adapted_prompt = self._construct_prompt_compress(prompt, response, amount_words)
-        self.stats.compressed = True
         for run in range(self.cfg.max_compress_attempts):
             for attempt in range(self.cfg.query_retry):
                 self.logger.debug(
@@ -188,12 +187,12 @@ Keep the same JSON field structure and format. Do not add or remove fields.
 
         # count words from LLM response (dict values) & update stats / logs
         total_words = sum(len(str(v).split()) for v in result.values())
-        self.logger.info(f"World Context: LLM response amount words: {total_words}")
+        self.logger.info(f"World Context 1st query: LLM response amount words: {total_words}")
         # if llm response not in total words constraint + buffer, compress it
         if total_words > (self.cfg.max_words + self.cfg.max_words_buffer):
             result = self._compress_wc(prompt, result, total_words)
         # count words final response (compressed or not) to save at stats word counter
-        self.stats.total_words = sum(len(str(v).split()) for v in result.values())
+        self.stats.wc_words = sum(len(str(v).split()) for v in result.values())
         return result
 
 
@@ -236,10 +235,8 @@ class BookProcessor:
         except Exception:
             self.logger.exception("Failed process creating world context...")
             raise
-        # bring response into target .md format, count tokens and log
+        # bring response into target .md format
         wc = format_llm_response(wc, "Novel World Context")
-        amount_tokens = len(TOKENIZER.encode(wc))
-        self.logger.info(f"World Context: Total amount tokens in final format: {amount_tokens}")
         # save & write to json
         self.book.meta.world_context = wc
         with open(self.book_json_path, mode="w", encoding="utf-8") as f:
@@ -278,11 +275,25 @@ class BookProcessor:
         self.logger.info(f"Book JSON file written to: {self.book_json_path}")
 
     def _create_report(self):
-        """ print report with stats collected during world context creation """
         s = self.stats
-        self.logger.info(f"World Context final words: {s.total_words}")
-        self.logger.info(f"Compression needed: {s.compress_runs} runs")
+        # narrative
+        content_words = self.book.meta.word_count
+        content_tok = sum(len(TOKENIZER.encode(chapter)) for chapter in self.book.chapters)
+        len_chapters = self.book.meta.total_chapters
+        avg_w, avg_t = int(content_words / len_chapters), int(content_tok / len_chapters)
+        self.logger.info("-------------NARRATIVE CONTENT---------------")
+        self.logger.info(f"A total of # {len_chapters} chapters were parsed.")
+        self.logger.info(f"Narrative content: {content_words:,} words; {content_tok:,} tokens.")
+        self.logger.info(f"Avg word/chapter: {avg_w:,}; Avg tok/chapter: {avg_t:,}")
+        # world_context
+        wc_tokens = len(TOKENIZER.encode(self.book.meta.world_context))
+        self.logger.info("---------------WORLD CONTEXT-----------------")
+        self.logger.info(f"World Context: Compression needed: {s.compress_runs} runs")
         self.logger.info(f"Compression successful: {s.compressed_successfully}")
+        self.logger.info(f"World Context: Total words raw llm response: {self.stats.wc_words}")
+        self.logger.info(f"World Context: Total amount tokens in final format: {wc_tokens}")
+        # params
+        self.logger.info("--------------OPERATION PARAMS---------------")
         self.logger.info(f"Max words: {self.cfg.max_words}")
         self.logger.info(f"Max words buffer: {self.cfg.max_words_buffer}")
         self.logger.info(f"LLM used: {self.cfg.llm}")
@@ -301,8 +312,6 @@ class BookProcessor:
         # update book meta counters after chapter processing
         self.book.meta.total_chapters = len(self.book.chapters)
         self.book.meta.word_count = sum(len(chapter.split()) for chapter in self.book.chapters)
-        self.logger.info(f"Parsed {self.book.meta.total_chapters} chapters to json book file")
-        self.logger.info(f"Total words: {self.book.meta.word_count}")
         self.logger.info("---------------------------------------------")
         self.logger.info("Creating world context ...")
         self._process_world_context()
