@@ -12,7 +12,7 @@ from src.config import TOKENIZER, SceneConfig, Book, Scene
 cfg = SceneConfig()
 
 
-def add_scene(book_json_path, scene_md_path):
+def add_scene(book_json_path: str, scene_md_path: str) -> None:
     print("started process...")
     # load book_json into dicts & unpack into pydantic obj
     with open(book_json_path, mode="r", encoding="utf-8") as f:
@@ -22,8 +22,8 @@ def add_scene(book_json_path, scene_md_path):
         scene_text = f.read()
     # calc & check text against max token size
     tok_amount = len(TOKENIZER.encode(scene_text))
-    if tok_amount > cfg.max_tokens:
-        raise ValueError(f"Scene text token: {tok_amount} over threshold: {cfg.max_tokens}")
+    if tok_amount > cfg.scene_max_tokens:
+        raise ValueError(f"Scene text token: {tok_amount} over threshold: {cfg.scene_max_tokens}")
     # create new scene
     new_scene = Scene(
         scene_id=1,
