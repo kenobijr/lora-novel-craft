@@ -37,6 +37,7 @@ def forge_book(input_book_path: str, *input_ref_path: str):
     else:
         has_ref = True
         ref = construct_ref(input_ref_path)
+        print(f"Reference content was added for world_context creation: {input_ref_path}")
     # init base book .json & world_context creation -> target dir: json/base
     b = BookProcessor(input_book_path, ref)
     base_path = b.run()
@@ -48,6 +49,7 @@ def forge_book(input_book_path: str, *input_ref_path: str):
     if has_ref:
         for ref_path in input_ref_path:
             add_scene(scene_path, ref_path)
+            print(f"Ref content scene added: {ref_path}")
     print("------Stage 3: Running Summary-------")
     # create running summaries along semantic (ref) scenes as timesteps
     sp = SummaryProcessor(scene_path)
