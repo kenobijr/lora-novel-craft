@@ -2,7 +2,7 @@
 Remove all Reference scenes from a given book json files scene list and update scene_id's after it.
 - reference scenes content must not go into training dataset like regular narrative scenes
 - instead, they can be integrated indirectly into world context and running summaries as context
-- after processing running summaries they must be removed
+- ATTENTION: ref scenes must be removed after creating running summaries
 """
 
 import argparse
