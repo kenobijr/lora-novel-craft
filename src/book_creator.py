@@ -197,16 +197,13 @@ Keep the same JSON field structure and format. Do not add or remove fields.
 
 
 class BookProcessor:
-    def __init__(self, input_book_path: str, input_ref_path: str, config=None):
+    def __init__(self, input_book_path: str, ref: str | None, config=None):
         self.cfg = config if config is not None else BookConfig()
         self.input_book_path = input_book_path
         with open(input_book_path, mode="r", encoding="utf-8") as f:
             self.book_content = f.read()
-        # optional ref material path -> if available, pass to llm wc creation
-        self.book_reference = None
-        if input_ref_path is not None:
-            with open(input_ref_path, mode="r", encoding="utf-8") as f:
-                self.book_reference = f.read()
+        # optional ref material -> if available, pass to llm wc creation
+        self.book_reference = ref
         # output file path to save json
         self.book_name = os.path.basename(self.input_book_path).removesuffix(".md")
         self.book_json_path = os.path.join(self.cfg.output_dir, f"{self.book_name}.json")
@@ -337,7 +334,12 @@ def main():
         help="path to input ref material .md file",
     )
     args = parser.parse_args()
-    bp = BookProcessor(args.input_book_path, args.input_ref_path)
+    # if .md ref provided, read & pass as str (same way as in orchestrator)
+    ref = None
+    if args.input_ref_path is not None:
+        with open(args.input_ref_path, mode="r", encoding="utf-8") as f:
+            ref = f.read()
+    bp = BookProcessor(args.input_book_path, ref)
     bp.run()
 
 
