@@ -206,7 +206,7 @@ class BookProcessor:
         self.book_reference = ref
         # output file path to save json
         self.book_name = os.path.basename(self.input_book_path).removesuffix(".md")
-        self.book_json_path = os.path.join(self.cfg.output_dir, f"{self.book_name}.json")
+        self.output_path = os.path.join(self.cfg.output_dir, f"{self.book_name}.json")
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, self.book_name)
         # construct book id from book_name: pattern: title last name author
         author, title = self.book_name.split("-", 1)
@@ -236,9 +236,9 @@ class BookProcessor:
         wc = format_llm_response(wc, "Novel World Context")
         # save & write to json
         self.book.meta.world_context = wc
-        with open(self.book_json_path, mode="w", encoding="utf-8") as f:
+        with open(self.output_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
-        self.logger.info(f"World context saved to file: {self.book_json_path}")
+        self.logger.info(f"World context saved to file: {self.output_path}")
 
     def _create_book(self):
         """
@@ -267,9 +267,9 @@ class BookProcessor:
         # save cleaned str list (remove empty string at 1st pos from split before # Chapter 1)
         self.book.chapters = [i for i in chapters if i.strip()]
         # write to json
-        with open(self.book_json_path, mode="w", encoding="utf-8") as f:
+        with open(self.output_path, mode="w", encoding="utf-8") as f:
             json.dump(self.book.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
-        self.logger.info(f"Book JSON file written to: {self.book_json_path}")
+        self.logger.info(f"Book JSON file written to: {self.output_path}")
 
     def _create_report(self):
         s = self.stats
@@ -315,6 +315,7 @@ class BookProcessor:
         self.logger.info("---------------------------------------------")
         self._create_report()
         self.logger.info("------Operation completed successfully-------")
+        return self.output_path
 
 
 def main():

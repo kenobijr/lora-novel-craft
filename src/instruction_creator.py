@@ -197,6 +197,7 @@ class InstructionProcessor:
         self.logger.info("---------------------------------------------")
         self._create_final_report()
         self.logger.info("------Operation completed successfully-------")
+        return self.output_path
 
 
 def main():

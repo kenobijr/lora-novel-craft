@@ -27,7 +27,7 @@ class CompileProcessor:
         with open(self.cfg.inference_systemmessage, mode="r", encoding="utf-8") as f:
             self.inference_systemmessage = f.read()
         book_name = os.path.basename(book_path).removesuffix(".json")
-        self.book_jsonl_path = os.path.join(self.cfg.output_dir, f"{book_name}.jsonl")
+        self.output_path = os.path.join(self.cfg.output_dir, f"{book_name}.jsonl")
         self.logger = init_logger(self.cfg.operation_name, self.cfg.debug_dir, book_name)
         self.stats = CompileStats()
         self.llm = CompileLLM(
@@ -70,7 +70,7 @@ NOVEL PROGRESS: {novel_progress}%
                 self.stats.too_large += 1
             self.stats.total_tokens += tokens
             sample = {"messages": messages}
-            with open(self.book_jsonl_path, mode="a", encoding="utf-8") as f:
+            with open(self.output_path, mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(sample, ensure_ascii=False) + "\n")
             self.stats.compiled += 1
 
@@ -93,6 +93,7 @@ NOVEL PROGRESS: {novel_progress}%
         avg_tok_scene = int(self.stats.total_tokens / self.stats.compiled)
         self.logger.info(f"Created {self.stats.compiled} samples with avg tok {avg_tok_scene:,}")
         self.logger.info(f"Amount samples too large: {self.stats.too_large}")
+        return self.output_path
 
 
 def main():

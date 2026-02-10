@@ -399,6 +399,7 @@ class SceneProcessor:
         # create closing report
         self._create_final_report()
         self.logger.info("------Operation completed successfully-------")
+        return self.output_path
 
 
 def main():
