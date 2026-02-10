@@ -57,7 +57,7 @@ data/json/ins/*
 !data/json/ins/Jack_London-The_Iron_Heel.json
 # jsonl final
 data/json/final/*
-!data/json/final/Jack_London-The_Iron_Heel.json
+!data/json/final/Jack_London-The_Iron_Heel.jsonl
 
 # debug & archive
 data/debug
