@@ -341,7 +341,7 @@ class SceneProcessor:
             self.logger.info(f"Gen {semantic_amount} Semantic Scenes; Avg: {semantic_avg:,.2f} tok")
             # create scene objects, save them and write to output file
             self._save_scenes(semantic_scenes, chapter_idx, chapter_title)
-            self.logger.info("---")
+            self.logger.info("---------------------------------------------")
 
     def _create_final_report(self) -> None:
         s = self.stats
