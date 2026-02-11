@@ -315,7 +315,6 @@ class SceneProcessor:
             self.stats.chunk_amount += chunk_amount
             self.stats.chunk_tokens += chunk_tokens
             self.logger.info(f"Gen {chunk_amount} Text Chunks; Avg: {chunk_avg:,.2f} tok")
-            self.logger.info("---")
             # query llm to get partitioning schema to map text chunks into atomic semantic scenes
             self.logger.info("Query LLM for scene partitioning...")
             try:
@@ -342,6 +341,7 @@ class SceneProcessor:
             self.logger.info(f"Gen {semantic_amount} Semantic Scenes; Avg: {semantic_avg:,.2f} tok")
             # create scene objects, save them and write to output file
             self._save_scenes(semantic_scenes, chapter_idx, chapter_title)
+            self.logger.info("---")
 
     def _create_final_report(self) -> None:
         s = self.stats
