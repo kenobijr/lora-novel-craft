@@ -315,6 +315,7 @@ class SceneProcessor:
             self.stats.chunk_amount += chunk_amount
             self.stats.chunk_tokens += chunk_tokens
             self.logger.info(f"Gen {chunk_amount} Text Chunks; Avg: {chunk_avg:,.2f} tok")
+            self.logger.info("---")
             # query llm to get partitioning schema to map text chunks into atomic semantic scenes
             self.logger.info("Query LLM for scene partitioning...")
             try:
@@ -384,7 +385,7 @@ class SceneProcessor:
             if chapter_range[0] >= chapter_range[1]:
                 raise ValueError("start must be < end")
         self.logger.info(f"Starting process book: {self.book_content.meta.title} ...")
-        self.logger.info(f"Processing scenes: start {chapter_range[0]} - end {chapter_range[1]}...")
+        self.logger.info(f"Processing chapters: start {chapter_range[0]} - end {chapter_range[1]}...")
         self.logger.info("---------------------------------------------")
         self._process_chapters(chapter_range)
         self.logger.info("---------------------------------------------")
