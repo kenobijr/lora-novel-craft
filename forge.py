@@ -6,7 +6,7 @@
 """
 
 import argparse
-from typing import Tuple
+from src.utils import construct_ref
 from src.book_creator import BookProcessor
 from src.scene_creator import SceneProcessor
 from src.manual_scene_adder import add_scene
@@ -16,27 +16,14 @@ from src.instruction_creator import InstructionProcessor
 from src.dataset_compiler import CompileProcessor
 
 
-def construct_ref(input_ref_path: Tuple[str]):
-    """ take 1-n input ref .md path and return as concat str """
-    ref_content = ""
-    for ref in input_ref_path:
-        with open(ref, mode="r", encoding="utf-8") as f:
-            content = f.read()
-        ref_content += f"{content}\n"
-    return ref_content
-
-
 def forge_book(input_book_path: str, *input_ref_path: str):
     print(f"FORGER_start: process book {input_book_path} ...")
     print("------Stage 1: Book & World Context-------")
-    # set flag if ref mat provided; default case: no; if yes, custom logic needed at some stages
-    has_ref = False
-    # if no input_ref_path provided set param to None; else construct it depending on amount
-    if not input_ref_path:
-        ref = None
-    else:
-        has_ref = True
-        ref = construct_ref(input_ref_path)
+    # set flag if depending on 0-n ref md's provided; if at least 1: custom logic triggered
+    has_ref = bool(input_ref_path)
+    # if no input_ref_path provided set param to None; else concat to 1 combined ref .md file
+    ref = construct_ref(input_ref_path) if input_ref_path else None
+    if has_ref:
         print(f"Reference content was added for world_context creation: {input_ref_path}")
     # init base book .json & world_context creation -> target dir: json/base
     b = BookProcessor(input_book_path, ref)

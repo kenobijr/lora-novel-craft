@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 import sys
 import logging
-from typing import Dict
+from typing import Dict, Tuple
 
 
 def parse_range(value: str) -> tuple[int, int]:
@@ -16,6 +16,19 @@ def parse_range(value: str) -> tuple[int, int]:
         return (int(parts[0]), int(parts[1]))
     except (ValueError, IndexError):
         raise argparse.ArgumentTypeError(f"must be start,end format (e.g. 0,10), got: {value}")
+
+
+def construct_ref(input_ref_path: Tuple[str, ...]):
+    """
+    - each book can contain 0 - n ref material .md files
+    - if at least 1 exists, map such 1-n input ref .md files into 1 concat str
+    """
+    ref_content = ""
+    for ref in input_ref_path:
+        with open(ref, mode="r", encoding="utf-8") as f:
+            content = f.read()
+        ref_content += f"{content}\n"
+    return ref_content
 
 
 def init_logger(operation_type: str, debug_dir: str, book_name: str) -> logging.Logger:

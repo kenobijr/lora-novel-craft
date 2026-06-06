@@ -11,7 +11,7 @@ import argparse
 from src.config import (
     BaseLLM, BookConfig, Book, BookMeta, WorldContext, TOKENIZER, MODEL_REGISTRY, BookStats
 )
-from src.utils import init_logger, format_llm_response
+from src.utils import init_logger, format_llm_response, construct_ref
 from typing import Dict
 import logging
 import os
@@ -322,7 +322,7 @@ def main():
     """
     cli entry point for converting .md novels into .json with narrative split into chapters
     - Usage: python book_creator.py <input_book_path.md> <input_ref_path.md>
-    - input_ref_path: optional, if meaningful reference content available
+    - input_ref_path: provide optional 0 - n reference .md files
     """
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument(
@@ -331,15 +331,13 @@ def main():
     )
     parser.add_argument(
         "input_ref_path",
-        nargs="?",
-        help="path to input ref material .md file",
+        # nargs always returns empty [] when 0 arguments given
+        nargs="*",
+        help="path to 0 - n ref .md files",
     )
     args = parser.parse_args()
-    # if .md ref provided, read & pass as str (same way as in orchestrator)
-    ref = None
-    if args.input_ref_path is not None:
-        with open(args.input_ref_path, mode="r", encoding="utf-8") as f:
-            ref = f.read()
+    # if at least 1 .md ref provided, map into combined .md to pass further or none
+    ref = construct_ref(args.input_ref_path) if args.input_ref_path else None
     bp = BookProcessor(args.input_book_path, ref)
     bp.run()
 
